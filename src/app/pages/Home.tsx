@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { Link } from "react-router";
 import { Bell, Search, Calendar, Wallet, Sparkles, Home as HomeIcon, Wrench, Car, Scissors, Paintbrush, Camera, Laptop, Heart, ChevronRight, MapPin, Star } from "lucide-react";
-import logoImage from "figma:asset/37a3bc5e0af11a212a9124a7d3ec819ea82f67d7.png";
+import logoImage from "../../assets/logo.png";
+import bgImage from "../../assets/background.png";
 
 export function Home() {
   const [vestingProgress] = useState(35); // 35% of 50 LEUS vested

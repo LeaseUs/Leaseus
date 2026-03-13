@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import { useNavigate } from "react-router";
+import bgImage from "../../assets/background.png";
 
 export function InitialRedirect() {
   const navigate = useNavigate();

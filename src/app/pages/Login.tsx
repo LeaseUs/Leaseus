@@ -1,20 +1,70 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router";
-import { Eye, EyeOff, Fingerprint } from "lucide-react";
-import bgImage from "figma:asset/26efaf54209cf3936abcb1e97f9969d980464042.png";
+import { Eye, EyeOff, Fingerprint, Loader2 } from "lucide-react";
+import bgImage from "../../assets/background.png";
+import { supabase } from "../../lib/supabase";
 
 export function Login() {
   const navigate = useNavigate();
   const [showPassword, setShowPassword] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    // Mock login - in production, validate credentials with backend
-    localStorage.setItem("isLoggedIn", "true");
-    localStorage.setItem("hasSeenWelcome", "true");
-    navigate("/home");
+    setError("");
+    setLoading(true);
+
+    try {
+      const { error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+
+      if (error) {
+        // Show friendly error messages
+        if (error.message.includes("Invalid login credentials")) {
+          setError("Incorrect email or password. Please try again.");
+        } else if (error.message.includes("Email not confirmed")) {
+          setError("Please verify your email before signing in.");
+        } else {
+          setError(error.message);
+        }
+        return;
+      }
+
+      // Success — navigate to home
+      navigate("/home");
+
+    } catch (err) {
+      setError("Something went wrong. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleForgotPassword = async () => {
+    if (!email) {
+      setError("Please enter your email address first.");
+      return;
+    }
+    setLoading(true);
+    setError("");
+
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: `${window.location.origin}/reset-password`,
+    });
+
+    setLoading(false);
+
+    if (error) {
+      setError(error.message);
+    } else {
+      setError(""); 
+      alert(`Password reset link sent to ${email}. Check your inbox!`);
+    }
   };
 
   return (
@@ -32,10 +82,19 @@ export function Login() {
 
       {/* Login Form */}
       <div className="w-full bg-white/90 backdrop-blur-lg rounded-2xl p-6 shadow-xl relative z-10 border border-white/50">
-        <h2 className="text-3xl font-bold text-[#1E3A8A] mb-2 text-center" style={{ fontFamily: 'Syne, sans-serif' }}>Welcome Back</h2>
+        <h2 className="text-3xl font-bold text-[#1E3A8A] mb-2 text-center" style={{ fontFamily: 'Syne, sans-serif' }}>
+          Welcome Back
+        </h2>
         <p className="text-gray-600 text-center mb-6">
           Sign in to continue
         </p>
+
+        {/* Error Message */}
+        {error && (
+          <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-xl text-red-600 text-sm text-center">
+            {error}
+          </div>
+        )}
 
         <form onSubmit={handleLogin} className="space-y-4">
           {/* Email Input */}
@@ -77,7 +136,11 @@ export function Login() {
 
           {/* Forgot Password */}
           <div className="text-right">
-            <button type="button" className="text-sm text-[#10B981] hover:underline">
+            <button
+              type="button"
+              onClick={handleForgotPassword}
+              className="text-sm text-[#10B981] hover:underline"
+            >
               Forgot Password?
             </button>
           </div>
@@ -85,9 +148,17 @@ export function Login() {
           {/* Login Button */}
           <button
             type="submit"
-            className="w-full bg-[#1E3A8A] text-white py-3 rounded-xl hover:bg-[#152d6b] transition-colors"
+            disabled={loading}
+            className="w-full bg-[#1E3A8A] text-white py-3 rounded-xl hover:bg-[#152d6b] transition-colors flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed"
           >
-            Sign In
+            {loading ? (
+              <>
+                <Loader2 className="w-5 h-5 animate-spin" />
+                Signing in...
+              </>
+            ) : (
+              "Sign In"
+            )}
           </button>
 
           {/* Biometric Login */}

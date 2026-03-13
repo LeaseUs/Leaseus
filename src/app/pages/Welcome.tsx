@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router";
 import { motion, AnimatePresence } from "motion/react";
 import { Shield, Zap, Sparkles, Gift, ChevronRight } from "lucide-react";
-import bgImage from "figma:asset/26efaf54209cf3936abcb1e97f9969d980464042.png";
+import bgImage from "../../assets/background.png";
 
 export function Welcome() {
   const navigate = useNavigate();
