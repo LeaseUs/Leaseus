@@ -3,8 +3,10 @@ import { Home } from "./pages/Home";
 import { Login } from "./pages/Login";
 import { Signup } from "./pages/Signup";
 import { Wallet } from "./pages/Wallet";
+import { MintLeaf } from "./pages/MintLeaf";
 import { Services } from "./pages/Services";
 import { ServiceDetail } from "./pages/ServiceDetail";
+import { Bookings } from "./pages/Bookings";
 import { Subscriptions } from "./pages/Subscriptions";
 import { Loyalty } from "./pages/Loyalty";
 import { Profile } from "./pages/Profile";
@@ -41,8 +43,10 @@ export const router = createBrowserRouter([
     children: [
       { index: true, Component: Home },
       { path: "wallet", Component: Wallet },
+      { path: "mintleaf", Component: MintLeaf },
       { path: "services", Component: Services },
       { path: "service/:id", Component: ServiceDetail },
+      { path: "bookings", Component: Bookings },
       { path: "subscriptions", Component: Subscriptions },
       { path: "loyalty", Component: Loyalty },
       { path: "profile", Component: Profile },

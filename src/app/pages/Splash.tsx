@@ -21,7 +21,7 @@ export function Splash() {
   };
 
   return (
-    <div 
+    <div
       className="min-h-screen flex flex-col items-center justify-between px-6 py-8 max-w-md mx-auto relative overflow-hidden"
       style={{
         backgroundImage: `url(${bgImage})`,
@@ -30,20 +30,21 @@ export function Splash() {
         backgroundRepeat: 'no-repeat'
       }}
     >
-      {/* Spacer for top */}
-      <div className="flex-1"></div>
+      {/* Spacer — zebra occupies roughly top 60% of screen, so we push the content below it */}
+      <div style={{ flex: '0 0 60vh' }}></div>
 
       {/* Bottom Section */}
-      <div className="w-full space-y-6 pb-4">
+      <div className="w-full space-y-4 pb-4">
+
         {/* LeaseUs Title */}
         <motion.h1
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.2, duration: 0.6 }}
-          className="text-6xl font-bold text-[#1E3A8A] text-center mb-8"
+          className="text-6xl font-bold text-center"
           style={{ fontFamily: 'Syne, sans-serif' }}
         >
-          LeaseUs
+          <span className="text-[#1E3A8A]">Lease</span><span className="text-[#10B981]">Us</span>
         </motion.h1>
 
         {/* Get 50 LEUS Free Button */}
@@ -52,10 +53,10 @@ export function Splash() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.3, duration: 0.6 }}
           onClick={handleGetBonus}
-          className="flex items-center gap-2 px-8 py-3 rounded-full border-2 border-[#10B981] text-[#10B981] bg-white/80 backdrop-blur-sm hover:bg-white/90 transition-all mx-auto"
+          className="flex items-center gap-2 px-6 py-2.5 rounded-full border-2 border-[#10B981] text-[#10B981] bg-white/80 backdrop-blur-sm hover:bg-white/90 transition-all mx-auto"
         >
-          <Gift className="w-5 h-5" />
-          <span className="font-medium">Get 50 LEUS Free</span>
+          <Gift className="w-4 h-4" />
+          <span className="font-medium text-sm">Get 50 LEUS Free</span>
         </motion.button>
 
         {/* Pagination Dots */}
@@ -75,7 +76,7 @@ export function Splash() {
           initial={{ opacity: 0, y: 30 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.6, duration: 0.6 }}
-          className="w-full flex gap-3 pt-4"
+          className="w-full flex gap-3 pt-2"
         >
           <button
             onClick={handleGetStarted}
