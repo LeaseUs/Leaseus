@@ -6,3 +6,5 @@ node_modules
 .netlify
 
 .vercel
+.netlify/
+netlify.toml
