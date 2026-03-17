@@ -4,7 +4,7 @@ import { MessageCircle, Search, Loader2 } from "lucide-react";
 import { supabase } from "../../lib/supabase";
 
 export function Messages() {
-  const navigate  = useNavigate();
+  const navigate = useNavigate();
   const [profile, setProfile]             = useState<any>(null);
   const [conversations, setConversations] = useState<any[]>([]);
   const [loading, setLoading]             = useState(true);
@@ -37,18 +37,16 @@ export function Messages() {
         .or(`client_id.eq.${user.id},provider_id.eq.${user.id}`)
         .order("last_message_at", { ascending: false });
 
-      // Fetch last message for each conversation
       const convsWithLastMsg = await Promise.all(
         (convData || []).map(async (conv: any) => {
           const { data: lastMsg } = await supabase
             .from("messages")
-            .select("content, type, created_at, sender_id, is_read")
+            .select("body, type, created_at, sender_id, is_read")
             .eq("conversation_id", conv.id)
             .order("created_at", { ascending: false })
             .limit(1)
             .single();
 
-          // Count unread
           const { count } = await supabase
             .from("messages")
             .select("*", { count: "exact", head: true })
@@ -77,8 +75,8 @@ export function Messages() {
     const date = new Date(dateStr);
     const now  = new Date();
     const diff = now.getTime() - date.getTime();
-    if (diff < 60000)   return "Just now";
-    if (diff < 3600000) return `${Math.floor(diff / 60000)}m`;
+    if (diff < 60000)    return "Just now";
+    if (diff < 3600000)  return `${Math.floor(diff / 60000)}m`;
     if (diff < 86400000) return date.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
     return date.toLocaleDateString("en-GB", { day: "numeric", month: "short" });
   };
@@ -88,7 +86,7 @@ export function Messages() {
     if (msg.type === "image") return "📷 Image";
     if (msg.type === "voice") return "🎤 Voice note";
     if (msg.type === "file")  return "📎 File";
-    return msg.content || "";
+    return msg.body || "";
   };
 
   const filtered = conversations.filter(c =>
@@ -108,7 +106,9 @@ export function Messages() {
       {/* Header */}
       <div className="bg-[#1E3A8A]/80 backdrop-blur-lg px-4 pt-6 pb-4 rounded-b-3xl">
         <h1 className="text-xl text-white mb-1">Messages</h1>
-        <p className="text-white/70 text-sm">{conversations.length} conversation{conversations.length !== 1 ? "s" : ""}</p>
+        <p className="text-white/70 text-sm">
+          {conversations.length} conversation{conversations.length !== 1 ? "s" : ""}
+        </p>
         <div className="relative mt-4">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/50" />
           <input
@@ -139,8 +139,11 @@ export function Messages() {
               >
                 {/* Avatar */}
                 {conv.other?.avatar_url ? (
-                  <img src={conv.other.avatar_url} alt=""
-                    className="w-12 h-12 rounded-full object-cover flex-shrink-0" />
+                  <img
+                    src={conv.other.avatar_url}
+                    alt=""
+                    className="w-12 h-12 rounded-full object-cover flex-shrink-0"
+                  />
                 ) : (
                   <div className="w-12 h-12 rounded-full bg-gradient-to-br from-[#1E3A8A] to-[#10B981] flex items-center justify-center text-white font-semibold flex-shrink-0">
                     {getInitials(conv.other?.full_name || "")}
@@ -154,7 +157,9 @@ export function Messages() {
                       {conv.other?.full_name || "Unknown"}
                     </h3>
                     <span className="text-xs text-gray-400 flex-shrink-0 ml-2">
-                      {conv.lastMsg ? formatTime(conv.lastMsg.created_at) : formatTime(conv.created_at)}
+                      {conv.lastMsg
+                        ? formatTime(conv.lastMsg.created_at)
+                        : formatTime(conv.created_at)}
                     </span>
                   </div>
                   <div className="flex items-center justify-between">

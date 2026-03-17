@@ -242,7 +242,11 @@ export function Login() {
       try {
         const { e, p } = JSON.parse(cached);
         const { error } = await supabase.auth.signInWithPassword({ email: e, password: p });
-        if (!error) { navigate("/home"); return; }
+        if (!error) {
+          localStorage.setItem("isLoggedIn", "true");
+          navigate("/home");
+          return;
+        }
       } catch { /* ignore */ }
     }
 
@@ -270,6 +274,9 @@ export function Login() {
         }
         return;
       }
+
+      // mark logged in
+      localStorage.setItem("isLoggedIn", "true");
 
       // Cache credentials in sessionStorage for biometric session restore
       // (sessionStorage is cleared when browser tab closes — reasonable security tradeoff for MVP)

@@ -128,6 +128,8 @@ export function Profile() {
   const handleLogout = async () => {
     setLoggingOut(true);
     await supabase.auth.signOut();
+    localStorage.removeItem("isLoggedIn");
+    sessionStorage.removeItem("leaseus_session_cache");
     navigate("/login");
   };
 

@@ -5,7 +5,6 @@ import { Signup } from "./pages/Signup";
 import { Wallet } from "./pages/Wallet";
 import { MintLeaf } from "./pages/MintLeaf";
 import { Services } from "./pages/Services";
-import { ProviderServices } from "./pages/ProviderServices";
 import { Messages } from "./pages/Messages";
 import { Conversation } from "./pages/Conversation";
 import { ServiceDetail } from "./pages/ServiceDetail";
@@ -18,6 +17,7 @@ import { AdminPartners } from "./pages/AdminPartners";
 import { Splash } from "./pages/Splash";
 import { Welcome } from "./pages/Welcome";
 import { Layout } from "./components/Layout";
+import { AuthGuard } from "./components/AuthGuard";
 import { InitialRedirect } from "./components/InitialRedirect";
 import { NotFound } from "./pages/NotFound";
 
@@ -52,20 +52,24 @@ export const router = createBrowserRouter([
   },
   {
     path: "/home",
-    Component: Layout,
+    Component: AuthGuard,
     children: [
-      { index: true, Component: Home },
-      { path: "wallet", Component: Wallet },
-      { path: "mintleaf", Component: MintLeaf },
-      { path: "services", Component: Services },
-      { path: "services", Component: ProviderServices },
-      { path: "service/:id", Component: ServiceDetail },
-      { path: "bookings", Component: Bookings },
-      { path: "messages", Component: Messages },
-      { path: "messages/:id", Component: Conversation },
-      { path: "subscriptions", Component: Subscriptions },
-      { path: "loyalty", Component: Loyalty },
-      { path: "profile", Component: Profile },
+      {
+        Component: Layout,
+        children: [
+          { index: true, Component: Home },
+          { path: "wallet", Component: Wallet },
+          { path: "mintleaf", Component: MintLeaf },
+          { path: "services", Component: Services },
+          { path: "service/:id", Component: ServiceDetail },
+          { path: "bookings", Component: Bookings },
+          { path: "messages", Component: Messages },
+          { path: "conversation/:id", Component: Conversation },
+          { path: "subscriptions", Component: Subscriptions },
+          { path: "loyalty", Component: Loyalty },
+          { path: "profile", Component: Profile },
+        ],
+      },
     ],
   },
   {
@@ -73,3 +77,4 @@ export const router = createBrowserRouter([
     Component: NotFound,
   },
 ]);
+

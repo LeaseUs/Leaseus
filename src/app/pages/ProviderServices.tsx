@@ -12,12 +12,12 @@ import {
 } from "recharts";
 
 const CATEGORIES = [
-  "Cleaning", "Plumbing", "Car Wash", "Hair & Beauty", "Painting",
-  "Photography", "IT Services", "Healthcare", "Tutoring / Education",
-  "Legal Services", "Accounting / Finance", "Moving / Removals",
-  "Pest Control", "Electrical", "Gardening / Landscaping",
-  "Personal Training", "Catering / Events", "Pet Care / Grooming",
-  "Security Services", "Laundry / Ironing", "Other",
+  "Cleaning","Plumbing","Car Wash","Hair & Beauty","Painting",
+  "Photography","IT Services","Healthcare","Tutoring / Education",
+  "Legal Services","Accounting / Finance","Moving / Removals",
+  "Pest Control","Electrical","Gardening / Landscaping",
+  "Personal Training","Catering / Events","Pet Care / Grooming",
+  "Security Services","Laundry / Ironing","Other",
 ];
 
 type Tab = "listings" | "analytics" | "add";
@@ -36,8 +36,9 @@ export function ProviderServices() {
   const fileInputRef                        = useRef<HTMLInputElement>(null);
 
   const [form, setForm] = useState({
-    title: "", description: "", category_name: "",
+    title: "", description: "", category: "",
     price_pence: "", price_type: "fixed",
+    booking_type: "fixed",
     accepts_leus: true, status: "active",
   });
   const [images, setImages]               = useState<File[]>([]);
@@ -50,68 +51,42 @@ export function ProviderServices() {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) { navigate("/login"); return; }
-
-      const { data: profileData } = await supabase
-        .from("profiles").select("*").eq("id", user.id).single();
+      const { data: profileData } = await supabase.from("profiles").select("*").eq("id", user.id).single();
       setProfile(profileData);
-
       const { data: listingsData } = await supabase
-        .from("listings")
-        .select("*, listing_images(url, is_primary)")
-        .eq("provider_id", user.id)
-        .order("created_at", { ascending: false });
+        .from("listings").select("*, listing_images(url, is_primary)")
+        .eq("provider_id", user.id).order("created_at", { ascending: false });
       setListings(listingsData || []);
-
       await fetchAnalytics(user.id, listingsData || []);
-    } catch (err) {
-      console.error("fetchData error:", err);
-    } finally {
-      setLoading(false);
-    }
+    } catch (err) { console.error(err); }
+    finally { setLoading(false); }
   };
 
   const fetchAnalytics = async (userId: string, currentListings: any[]) => {
     try {
       const sevenDaysAgo = new Date();
       sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-
-      const { data: bookings } = await supabase
-        .from("bookings")
+      const { data: bookings } = await supabase.from("bookings")
         .select("id, amount_pence, amount_leus, payment_method, status, created_at")
-        .eq("provider_id", userId)
-        .gte("created_at", sevenDaysAgo.toISOString());
+        .eq("provider_id", userId).gte("created_at", sevenDaysAgo.toISOString());
 
       const days = Array.from({ length: 7 }, (_, i) => {
-        const d = new Date();
-        d.setDate(d.getDate() - (6 - i));
-        return {
-          day: d.toLocaleDateString("en-GB", { weekday: "short" }),
-          date: d.toISOString().split("T")[0],
-          earnings: 0,
-          bookings: 0,
-        };
+        const d = new Date(); d.setDate(d.getDate() - (6 - i));
+        return { day: d.toLocaleDateString("en-GB", { weekday: "short" }), date: d.toISOString().split("T")[0], earnings: 0, bookings: 0 };
       });
-
       bookings?.forEach(b => {
         const day = days.find(d => d.date === b.created_at.split("T")[0]);
         if (day && b.status === "completed") {
-          day.earnings += b.payment_method === "fiat"
-            ? (b.amount_pence || 0) / 100
-            : Number(b.amount_leus || 0);
+          day.earnings += b.payment_method === "fiat" ? (b.amount_pence || 0) / 100 : Number(b.amount_leus || 0);
           day.bookings += 1;
         }
       });
 
-      const { data: allBookings } = await supabase
-        .from("bookings")
-        .select("id, amount_pence, amount_leus, payment_method, status")
-        .eq("provider_id", userId);
-
+      const { data: allBookings } = await supabase.from("bookings")
+        .select("id, amount_pence, amount_leus, payment_method, status").eq("provider_id", userId);
       const completed   = allBookings?.filter(b => b.status === "completed") || [];
       const totalEarned = completed.reduce((sum, b) =>
-        sum + (b.payment_method === "fiat"
-          ? (b.amount_pence || 0) / 100
-          : Number(b.amount_leus || 0)), 0);
+        sum + (b.payment_method === "fiat" ? (b.amount_pence || 0) / 100 : Number(b.amount_leus || 0)), 0);
 
       setAnalytics({
         chartData: days,
@@ -120,29 +95,17 @@ export function ProviderServices() {
         totalEarned,
         activeListings: currentListings.filter(l => l.status === "active").length,
       });
-    } catch (err) {
-      console.error("fetchAnalytics error:", err);
-    }
+    } catch (err) { console.error(err); }
   };
 
   const resetForm = () => {
-    setForm({
-      title: "", description: "", category_name: "",
-      price_pence: "", price_type: "fixed",
-      accepts_leus: true, status: "active",
-    });
-    setImages([]);
-    setImagePreviews([]);
-    setEditingId(null);
-    setError("");
+    setForm({ title: "", description: "", category: "", price_pence: "", price_type: "fixed", booking_type: "fixed", accepts_leus: true, status: "active" });
+    setImages([]); setImagePreviews([]); setEditingId(null); setError("");
   };
 
   const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
-    if (files.length + images.length > 5) {
-      setError("Maximum 5 images allowed.");
-      return;
-    }
+    if (files.length + images.length > 5) { setError("Maximum 5 images allowed."); return; }
     setImages(prev => [...prev, ...files]);
     setImagePreviews(prev => [...prev, ...files.map(f => URL.createObjectURL(f))]);
   };
@@ -153,110 +116,68 @@ export function ProviderServices() {
   };
 
   const handleSave = async () => {
-    if (!form.title || !form.category_name || !form.price_pence) {
-      setError("Please fill in all required fields.");
-      return;
-    }
+    if (!form.title || !form.category || !form.price_pence) { setError("Please fill in all required fields."); return; }
     setSaving(true); setError(""); setSuccess("");
-
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
-      // ── Build listing payload ──────────────────────────────────
-      // Uses category_name (TEXT column). If your DB uses a foreign
-      // key called category_id instead, swap this out accordingly.
       const listingData: any = {
         provider_id:  user.id,
         title:        form.title,
         description:  form.description,
-        category_name: form.category_name,
+        category:     form.category,
         price_pence:  Math.round(parseFloat(form.price_pence) * 100),
         price_type:   form.price_type,
+        booking_type: form.booking_type,
         accepts_leus: form.accepts_leus,
         status:       form.status,
       };
 
       let listingId = editingId;
-
       if (editingId) {
-        const { error: updateErr } = await supabase
-          .from("listings").update(listingData).eq("id", editingId);
+        const { error: updateErr } = await supabase.from("listings").update(listingData).eq("id", editingId);
         if (updateErr) throw updateErr;
       } else {
-        const { data, error: insertErr } = await supabase
-          .from("listings").insert(listingData).select("id").single();
+        const { data, error: insertErr } = await supabase.from("listings").insert(listingData).select("id").single();
         if (insertErr) throw insertErr;
         listingId = data.id;
       }
 
-      // ── Upload images ──────────────────────────────────────────
+      // Upload images
       for (let i = 0; i < images.length; i++) {
         const file = images[i];
         const ext  = file.name.split(".").pop() || "jpg";
         const path = `listings/${listingId}/${Date.now()}_${i}.${ext}`;
-
-        const { error: uploadErr } = await supabase.storage
-          .from("listing-images")
-          .upload(path, file, { upsert: true });
-
-        if (uploadErr) {
-          console.error("Image upload error:", uploadErr);
-          // Don't block the whole save — just warn
-          setError(`Listing saved but image ${i + 1} failed to upload: ${uploadErr.message}`);
-          continue;
-        }
-
-        const { data: urlData } = supabase.storage
-          .from("listing-images")
-          .getPublicUrl(path);
-
-        const { error: imgInsertErr } = await supabase
-          .from("listing_images")
-          .insert({
-            listing_id: listingId,
-            url:        urlData.publicUrl,
-            is_primary: i === 0 && !editingId,
-          });
-
-        if (imgInsertErr) {
-          console.error("listing_images insert error:", imgInsertErr);
-        }
+        const { error: uploadErr } = await supabase.storage.from("listing-images").upload(path, file, { upsert: true });
+        if (uploadErr) { console.error("Image upload error:", uploadErr.message); continue; }
+        const { data: urlData } = supabase.storage.from("listing-images").getPublicUrl(path);
+        await supabase.from("listing_images").insert({ listing_id: listingId, url: urlData.publicUrl, is_primary: i === 0 && !editingId });
       }
 
-      if (!error) {
-        setSuccess(editingId ? "Listing updated!" : "Listing created successfully!");
-      }
-      resetForm();
-      setActiveTab("listings");
-      fetchData();
+      setSuccess(editingId ? "Listing updated!" : "Listing created successfully!");
+      resetForm(); setActiveTab("listings"); fetchData();
     } catch (err: any) {
-      console.error("handleSave error:", err);
       setError(err.message || "Failed to save listing.");
-    } finally {
-      setSaving(false);
-    }
+    } finally { setSaving(false); }
   };
 
   const handleEdit = (listing: any) => {
     setForm({
-      title:         listing.title,
-      description:   listing.description || "",
-      category_name: listing.category_name || "",
-      price_pence:   String((listing.price_pence || 0) / 100),
-      price_type:    listing.price_type || "fixed",
-      accepts_leus:  listing.accepts_leus,
-      status:        listing.status,
+      title:        listing.title,
+      description:  listing.description || "",
+      category:     listing.category || "",
+      price_pence:  String((listing.price_pence || 0) / 100),
+      price_type:   listing.price_type || "fixed",
+      booking_type: listing.booking_type || "fixed",
+      accepts_leus: listing.accepts_leus,
+      status:       listing.status,
     });
-    setEditingId(listing.id);
-    setImages([]);
-    setImagePreviews([]);
-    setActiveTab("add");
+    setEditingId(listing.id); setImages([]); setImagePreviews([]); setActiveTab("add");
   };
 
   const handleToggleStatus = async (listing: any) => {
-    const newStatus = listing.status === "active" ? "inactive" : "active";
-    await supabase.from("listings").update({ status: newStatus }).eq("id", listing.id);
+    await supabase.from("listings").update({ status: listing.status === "active" ? "inactive" : "active" }).eq("id", listing.id);
     fetchData();
   };
 
@@ -266,33 +187,22 @@ export function ProviderServices() {
     fetchData();
   };
 
-  if (loading) return (
-    <div className="min-h-screen flex items-center justify-center">
-      <Loader2 className="w-8 h-8 animate-spin text-[#1E3A8A]" />
-    </div>
-  );
+  if (loading) return <div className="min-h-screen flex items-center justify-center"><Loader2 className="w-8 h-8 animate-spin text-[#1E3A8A]" /></div>;
 
   return (
     <div className="min-h-screen">
-      {/* ── Header ── */}
+      {/* Header */}
       <div className="bg-[#1E3A8A]/80 backdrop-blur-lg px-4 pt-6 pb-4 rounded-b-3xl">
         <div className="flex items-center justify-between mb-4">
           <div>
-            <h1 className="text-xl font-bold text-white" style={{ fontFamily: "Syne, sans-serif" }}>
-              My Services
-            </h1>
-            <p className="text-white/70 text-sm">
-              {listings.length} listing{listings.length !== 1 ? "s" : ""}
-            </p>
+            <h1 className="text-xl font-bold text-white" style={{ fontFamily: "Syne, sans-serif" }}>My Services</h1>
+            <p className="text-white/70 text-sm">{listings.length} listing{listings.length !== 1 ? "s" : ""}</p>
           </div>
-          <button
-            onClick={() => { resetForm(); setActiveTab("add"); }}
-            className="bg-[#10B981] text-white px-4 py-2 rounded-xl text-sm flex items-center gap-2 hover:bg-[#0d9668] transition-colors"
-          >
-            <Plus className="w-4 h-4" /> Add Listing
+          <button onClick={() => { resetForm(); setActiveTab("add"); }}
+            className="bg-[#10B981] text-white px-4 py-2 rounded-xl text-sm flex items-center gap-2 hover:bg-[#0d9668] transition-colors">
+            <Plus className="w-4 h-4" />Add Listing
           </button>
         </div>
-
         <div className="grid grid-cols-3 gap-2">
           {[
             { label: "Active",  value: listings.filter(l => l.status === "active").length },
@@ -307,7 +217,7 @@ export function ProviderServices() {
         </div>
       </div>
 
-      {/* ── Tabs ── */}
+      {/* Tabs */}
       <div className="px-4 mt-4">
         <div className="flex bg-white/80 backdrop-blur-md rounded-xl p-1 border border-white/30">
           {([
@@ -315,26 +225,16 @@ export function ProviderServices() {
             { key: "analytics", label: "Analytics",   Icon: BarChart2 },
             { key: "add",       label: editingId ? "Edit" : "Add New", Icon: Plus },
           ] as { key: Tab; label: string; Icon: any }[]).map(({ key, label, Icon }) => (
-            <button
-              key={key}
-              onClick={() => {
-                if (key !== "add") setActiveTab(key);
-                else { resetForm(); setActiveTab("add"); }
-              }}
-              className={`flex-1 py-2 rounded-lg text-xs font-medium transition-colors flex items-center justify-center gap-1
-                ${activeTab === key ? "bg-[#1E3A8A] text-white" : "text-gray-600"}`}
-            >
+            <button key={key}
+              onClick={() => { if (key !== "add") setActiveTab(key); else { resetForm(); setActiveTab("add"); } }}
+              className={`flex-1 py-2 rounded-lg text-xs font-medium transition-colors flex items-center justify-center gap-1 ${activeTab === key ? "bg-[#1E3A8A] text-white" : "text-gray-600"}`}>
               <Icon className="w-3.5 h-3.5" />{label}
             </button>
           ))}
         </div>
       </div>
 
-      {success && (
-        <div className="mx-4 mt-3 p-3 bg-green-50 border border-green-200 rounded-xl text-green-700 text-sm">
-          {success}
-        </div>
-      )}
+      {success && <div className="mx-4 mt-3 p-3 bg-green-50 border border-green-200 rounded-xl text-green-700 text-sm">{success}</div>}
 
       {/* ── LISTINGS TAB ── */}
       {activeTab === "listings" && (
@@ -343,89 +243,50 @@ export function ProviderServices() {
             <div className="bg-white/80 backdrop-blur-md rounded-xl p-10 text-center border border-white/30">
               <Package className="w-12 h-12 text-gray-300 mx-auto mb-3" />
               <p className="text-gray-500 mb-4">No listings yet</p>
-              <button
-                onClick={() => setActiveTab("add")}
-                className="bg-[#10B981] text-white px-6 py-2.5 rounded-xl text-sm hover:bg-[#0d9668] transition-colors"
-              >
+              <button onClick={() => setActiveTab("add")} className="bg-[#10B981] text-white px-6 py-2.5 rounded-xl text-sm hover:bg-[#0d9668] transition-colors">
                 Create Your First Listing
               </button>
             </div>
-          ) : (
-            listings.map(listing => {
-              const primaryImg =
-                listing.listing_images?.find((i: any) => i.is_primary)?.url
-                || listing.listing_images?.[0]?.url;
-
-              return (
-                <div
-                  key={listing.id}
-                  className="bg-white/80 backdrop-blur-md rounded-xl shadow-sm border border-white/30 overflow-hidden"
-                >
-                  <div className="flex gap-3">
-                    {primaryImg ? (
-                      <img
-                        src={primaryImg}
-                        alt={listing.title}
-                        className="w-24 h-24 object-cover flex-shrink-0"
-                        onError={e => { (e.target as HTMLImageElement).style.display = "none"; }}
-                      />
-                    ) : (
-                      <div className="w-24 h-24 bg-gray-100 flex items-center justify-center flex-shrink-0">
-                        <Camera className="w-8 h-8 text-gray-300" />
-                      </div>
-                    )}
-                    <div className="flex-1 p-3">
-                      <div className="flex items-start justify-between mb-1">
-                        <h3 className="text-sm font-semibold text-gray-800 flex-1">{listing.title}</h3>
-                        <span className={`text-xs px-2 py-0.5 rounded-full ml-2 ${
-                          listing.status === "active"
-                            ? "bg-green-100 text-green-700"
-                            : "bg-gray-100 text-gray-500"
-                        }`}>
-                          {listing.status}
-                        </span>
-                      </div>
-                      <p className="text-xs text-gray-500 mb-1">{listing.category_name}</p>
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm font-semibold text-[#1E3A8A]">
-                          £{((listing.price_pence || 0) / 100).toFixed(2)}
-                          {listing.price_type === "hourly" ? "/hr" : ""}
-                        </span>
-                        {listing.accepts_leus && (
-                          <span className="text-xs bg-[#10B981] text-white px-2 py-0.5 rounded-full">
-                            LEUS
-                          </span>
-                        )}
-                      </div>
+          ) : listings.map(listing => {
+            const primaryImg = listing.listing_images?.find((i: any) => i.is_primary)?.url || listing.listing_images?.[0]?.url;
+            return (
+              <div key={listing.id} className="bg-white/80 backdrop-blur-md rounded-xl shadow-sm border border-white/30 overflow-hidden">
+                <div className="flex gap-3">
+                  {primaryImg
+                    ? <img src={primaryImg} alt={listing.title} className="w-24 h-24 object-cover flex-shrink-0" onError={e => { (e.target as HTMLImageElement).style.display = "none"; }} />
+                    : <div className="w-24 h-24 bg-gray-100 flex items-center justify-center flex-shrink-0"><Camera className="w-8 h-8 text-gray-300" /></div>
+                  }
+                  <div className="flex-1 p-3">
+                    <div className="flex items-start justify-between mb-1">
+                      <h3 className="text-sm font-semibold text-gray-800 flex-1">{listing.title}</h3>
+                      <span className={`text-xs px-2 py-0.5 rounded-full ml-2 ${listing.status === "active" ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-500"}`}>{listing.status}</span>
+                    </div>
+                    <div className="flex items-center gap-2 mb-1">
+                      <p className="text-xs text-gray-500">{listing.category}</p>
+                      <span className={`text-xs px-1.5 py-0.5 rounded-full ${listing.booking_type === "negotiable" ? "bg-orange-100 text-orange-700" : "bg-blue-100 text-blue-700"}`}>
+                        {listing.booking_type === "negotiable" ? "Negotiable" : "Fixed"}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-semibold text-[#1E3A8A]">£{((listing.price_pence || 0) / 100).toFixed(2)}{listing.price_type === "hourly" ? "/hr" : ""}</span>
+                      {listing.accepts_leus && <span className="text-xs bg-[#10B981] text-white px-2 py-0.5 rounded-full">LEUS</span>}
                     </div>
                   </div>
-
-                  <div className="flex border-t border-gray-100">
-                    <button
-                      onClick={() => handleEdit(listing)}
-                      className="flex-1 py-2.5 flex items-center justify-center gap-1 text-xs text-[#1E3A8A] hover:bg-blue-50 transition-colors"
-                    >
-                      <Edit2 className="w-3.5 h-3.5" /> Edit
-                    </button>
-                    <button
-                      onClick={() => handleToggleStatus(listing)}
-                      className="flex-1 py-2.5 flex items-center justify-center gap-1 text-xs text-gray-600 hover:bg-gray-50 transition-colors border-x border-gray-100"
-                    >
-                      {listing.status === "active"
-                        ? <><EyeOff className="w-3.5 h-3.5" /> Hide</>
-                        : <><Eye className="w-3.5 h-3.5" /> Show</>}
-                    </button>
-                    <button
-                      onClick={() => handleDelete(listing.id)}
-                      className="flex-1 py-2.5 flex items-center justify-center gap-1 text-xs text-red-500 hover:bg-red-50 transition-colors"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" /> Delete
-                    </button>
-                  </div>
                 </div>
-              );
-            })
-          )}
+                <div className="flex border-t border-gray-100">
+                  <button onClick={() => handleEdit(listing)} className="flex-1 py-2.5 flex items-center justify-center gap-1 text-xs text-[#1E3A8A] hover:bg-blue-50 transition-colors">
+                    <Edit2 className="w-3.5 h-3.5" />Edit
+                  </button>
+                  <button onClick={() => handleToggleStatus(listing)} className="flex-1 py-2.5 flex items-center justify-center gap-1 text-xs text-gray-600 hover:bg-gray-50 transition-colors border-x border-gray-100">
+                    {listing.status === "active" ? <><EyeOff className="w-3.5 h-3.5" />Hide</> : <><Eye className="w-3.5 h-3.5" />Show</>}
+                  </button>
+                  <button onClick={() => handleDelete(listing.id)} className="flex-1 py-2.5 flex items-center justify-center gap-1 text-xs text-red-500 hover:bg-red-50 transition-colors">
+                    <Trash2 className="w-3.5 h-3.5" />Delete
+                  </button>
+                </div>
+              </div>
+            );
+          })}
         </div>
       )}
 
@@ -434,15 +295,13 @@ export function ProviderServices() {
         <div className="px-4 mt-4 pb-6 space-y-4">
           <div className="grid grid-cols-2 gap-3">
             {[
-              { label: "Total Bookings",  value: analytics?.totalBookings || 0,                      Icon: Users,        color: "text-blue-600",   bg: "bg-blue-50" },
-              { label: "Completed",       value: analytics?.completedBookings || 0,                  Icon: CheckCircle,  color: "text-green-600",  bg: "bg-green-50" },
-              { label: "Total Earned",    value: `£${(analytics?.totalEarned || 0).toFixed(2)}`,     Icon: DollarSign,   color: "text-purple-600", bg: "bg-purple-50" },
-              { label: "Active Listings", value: analytics?.activeListings || 0,                     Icon: Package,      color: "text-orange-600", bg: "bg-orange-50" },
+              { label: "Total Bookings",  value: analytics?.totalBookings || 0,                  Icon: Users,       color: "text-blue-600",   bg: "bg-blue-50" },
+              { label: "Completed",       value: analytics?.completedBookings || 0,              Icon: CheckCircle, color: "text-green-600",  bg: "bg-green-50" },
+              { label: "Total Earned",    value: `£${(analytics?.totalEarned || 0).toFixed(2)}`, Icon: DollarSign,  color: "text-purple-600", bg: "bg-purple-50" },
+              { label: "Active Listings", value: analytics?.activeListings || 0,                 Icon: Package,     color: "text-orange-600", bg: "bg-orange-50" },
             ].map(({ label, value, Icon, color, bg }, i) => (
               <div key={i} className="bg-white/80 backdrop-blur-md rounded-xl p-4 shadow-sm border border-white/30">
-                <div className={`w-9 h-9 ${bg} rounded-lg flex items-center justify-center mb-2`}>
-                  <Icon className={`w-5 h-5 ${color}`} />
-                </div>
+                <div className={`w-9 h-9 ${bg} rounded-lg flex items-center justify-center mb-2`}><Icon className={`w-5 h-5 ${color}`} /></div>
                 <p className="text-lg font-bold text-gray-800">{value}</p>
                 <p className="text-xs text-gray-500">{label}</p>
               </div>
@@ -450,9 +309,7 @@ export function ProviderServices() {
           </div>
 
           <div className="bg-white/80 backdrop-blur-md rounded-xl p-4 shadow-sm border border-white/30">
-            <h3 className="text-sm font-semibold text-gray-800 mb-4 flex items-center gap-2">
-              <TrendingUp className="w-4 h-4 text-[#10B981]" /> Earnings — Last 7 Days
-            </h3>
+            <h3 className="text-sm font-semibold text-gray-800 mb-4 flex items-center gap-2"><TrendingUp className="w-4 h-4 text-[#10B981]" />Earnings — Last 7 Days</h3>
             <ResponsiveContainer width="100%" height={160}>
               <AreaChart data={analytics?.chartData || []}>
                 <defs>
@@ -471,9 +328,7 @@ export function ProviderServices() {
           </div>
 
           <div className="bg-white/80 backdrop-blur-md rounded-xl p-4 shadow-sm border border-white/30">
-            <h3 className="text-sm font-semibold text-gray-800 mb-4 flex items-center gap-2">
-              <BarChart2 className="w-4 h-4 text-[#10B981]" /> Bookings — Last 7 Days
-            </h3>
+            <h3 className="text-sm font-semibold text-gray-800 mb-4 flex items-center gap-2"><BarChart2 className="w-4 h-4 text-[#10B981]" />Bookings — Last 7 Days</h3>
             <ResponsiveContainer width="100%" height={140}>
               <BarChart data={analytics?.chartData || []}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
@@ -490,20 +345,12 @@ export function ProviderServices() {
             <div className="flex items-center gap-4">
               <div className="flex-1">
                 <div className="h-3 bg-gray-200 rounded-full overflow-hidden">
-                  <div
-                    className="h-full bg-gradient-to-r from-[#1E3A8A] to-[#10B981] rounded-full transition-all"
-                    style={{
-                      width: `${analytics?.totalBookings > 0
-                        ? Math.round((analytics.completedBookings / analytics.totalBookings) * 100)
-                        : 0}%`,
-                    }}
-                  />
+                  <div className="h-full bg-gradient-to-r from-[#1E3A8A] to-[#10B981] rounded-full transition-all"
+                    style={{ width: `${analytics?.totalBookings > 0 ? Math.round((analytics.completedBookings / analytics.totalBookings) * 100) : 0}%` }} />
                 </div>
               </div>
               <span className="text-lg font-bold text-[#1E3A8A]">
-                {analytics?.totalBookings > 0
-                  ? Math.round((analytics.completedBookings / analytics.totalBookings) * 100)
-                  : 0}%
+                {analytics?.totalBookings > 0 ? Math.round((analytics.completedBookings / analytics.totalBookings) * 100) : 0}%
               </span>
             </div>
           </div>
@@ -514,79 +361,51 @@ export function ProviderServices() {
       {activeTab === "add" && (
         <div className="px-4 mt-4 pb-6">
           <div className="bg-white/80 backdrop-blur-md rounded-xl p-5 shadow-sm border border-white/30 space-y-4">
-            <h2 className="text-lg font-semibold text-gray-800">
-              {editingId ? "Edit Listing" : "New Listing"}
-            </h2>
+            <h2 className="text-lg font-semibold text-gray-800">{editingId ? "Edit Listing" : "New Listing"}</h2>
+            {error && <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-red-600 text-sm">{error}</div>}
 
-            {error && (
-              <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-red-600 text-sm">
-                {error}
-              </div>
-            )}
-
-            {/* Title */}
             <div>
               <label className="block text-sm text-gray-700 mb-1">Title *</label>
-              <input
-                value={form.title}
-                onChange={e => setForm(f => ({ ...f, title: e.target.value }))}
+              <input value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))}
                 placeholder="e.g. Professional House Cleaning"
-                className="w-full px-4 py-3 bg-gray-50 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#10B981] text-sm"
-              />
+                className="w-full px-4 py-3 bg-gray-50 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#10B981] text-sm" />
             </div>
 
-            {/* Category */}
             <div>
               <label className="block text-sm text-gray-700 mb-1">Category *</label>
               <div className="relative">
                 <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
-                <select
-                  value={form.category_name}
-                  onChange={e => setForm(f => ({ ...f, category_name: e.target.value }))}
-                  className="w-full px-4 py-3 bg-gray-50 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#10B981] text-sm appearance-none"
-                >
+                <select value={form.category} onChange={e => setForm(f => ({ ...f, category: e.target.value }))}
+                  className="w-full px-4 py-3 bg-gray-50 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#10B981] text-sm appearance-none">
                   <option value="">Select category</option>
                   {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
                 </select>
               </div>
             </div>
 
-            {/* Description */}
             <div>
               <label className="block text-sm text-gray-700 mb-1">Description</label>
-              <textarea
-                value={form.description}
-                onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
-                placeholder="Describe your service..."
-                rows={3}
-                className="w-full px-4 py-3 bg-gray-50 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#10B981] text-sm resize-none"
-              />
+              <textarea value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
+                placeholder="Describe your service..." rows={3}
+                className="w-full px-4 py-3 bg-gray-50 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#10B981] text-sm resize-none" />
             </div>
 
-            {/* Price */}
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="block text-sm text-gray-700 mb-1">Price (£) *</label>
                 <div className="relative">
                   <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 text-sm">£</span>
-                  <input
-                    type="number"
-                    value={form.price_pence}
-                    onChange={e => setForm(f => ({ ...f, price_pence: e.target.value }))}
+                  <input type="number" value={form.price_pence} onChange={e => setForm(f => ({ ...f, price_pence: e.target.value }))}
                     placeholder="0.00" min="0" step="0.01"
-                    className="w-full pl-8 pr-4 py-3 bg-gray-50 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#10B981] text-sm"
-                  />
+                    className="w-full pl-8 pr-4 py-3 bg-gray-50 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#10B981] text-sm" />
                 </div>
               </div>
               <div>
                 <label className="block text-sm text-gray-700 mb-1">Price Type</label>
                 <div className="relative">
                   <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
-                  <select
-                    value={form.price_type}
-                    onChange={e => setForm(f => ({ ...f, price_type: e.target.value }))}
-                    className="w-full px-4 py-3 bg-gray-50 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#10B981] text-sm appearance-none"
-                  >
+                  <select value={form.price_type} onChange={e => setForm(f => ({ ...f, price_type: e.target.value }))}
+                    className="w-full px-4 py-3 bg-gray-50 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#10B981] text-sm appearance-none">
                     <option value="fixed">Fixed</option>
                     <option value="hourly">Per Hour</option>
                     <option value="quote">Quote</option>
@@ -595,65 +414,50 @@ export function ProviderServices() {
               </div>
             </div>
 
-            {/* Toggles */}
+            {/* Booking Type */}
+            <div>
+              <label className="block text-sm text-gray-700 mb-2">Booking Method</label>
+              <div className="grid grid-cols-2 gap-3">
+                <button type="button" onClick={() => setForm(f => ({ ...f, booking_type: "fixed" }))}
+                  className={`py-3 px-3 rounded-xl text-sm border transition-colors text-left ${form.booking_type === "fixed" ? "bg-[#1E3A8A]/10 border-[#1E3A8A] text-[#1E3A8A]" : "bg-gray-50 border-gray-200 text-gray-500"}`}>
+                  <p className="font-medium">Fixed</p>
+                  <p className="text-xs opacity-70 mt-0.5">Client books directly</p>
+                </button>
+                <button type="button" onClick={() => setForm(f => ({ ...f, booking_type: "negotiable" }))}
+                  className={`py-3 px-3 rounded-xl text-sm border transition-colors text-left ${form.booking_type === "negotiable" ? "bg-orange-50 border-orange-400 text-orange-700" : "bg-gray-50 border-gray-200 text-gray-500"}`}>
+                  <p className="font-medium">Negotiable</p>
+                  <p className="text-xs opacity-70 mt-0.5">Chat first, then offer</p>
+                </button>
+              </div>
+            </div>
+
             <div className="flex gap-3">
-              <button
-                type="button"
-                onClick={() => setForm(f => ({ ...f, accepts_leus: !f.accepts_leus }))}
-                className={`flex-1 py-2.5 rounded-xl text-sm font-medium transition-colors border ${
-                  form.accepts_leus
-                    ? "bg-[#10B981]/10 border-[#10B981] text-[#10B981]"
-                    : "bg-gray-50 border-gray-200 text-gray-500"
-                }`}
-              >
+              <button type="button" onClick={() => setForm(f => ({ ...f, accepts_leus: !f.accepts_leus }))}
+                className={`flex-1 py-2.5 rounded-xl text-sm font-medium transition-colors border ${form.accepts_leus ? "bg-[#10B981]/10 border-[#10B981] text-[#10B981]" : "bg-gray-50 border-gray-200 text-gray-500"}`}>
                 {form.accepts_leus ? "✓ Accepts LEUS" : "LEUS Off"}
               </button>
-              <button
-                type="button"
-                onClick={() => setForm(f => ({ ...f, status: f.status === "active" ? "inactive" : "active" }))}
-                className={`flex-1 py-2.5 rounded-xl text-sm font-medium transition-colors border ${
-                  form.status === "active"
-                    ? "bg-green-50 border-green-300 text-green-700"
-                    : "bg-gray-50 border-gray-200 text-gray-500"
-                }`}
-              >
+              <button type="button" onClick={() => setForm(f => ({ ...f, status: f.status === "active" ? "inactive" : "active" }))}
+                className={`flex-1 py-2.5 rounded-xl text-sm font-medium transition-colors border ${form.status === "active" ? "bg-green-50 border-green-300 text-green-700" : "bg-gray-50 border-gray-200 text-gray-500"}`}>
                 {form.status === "active" ? "✓ Active" : "Inactive"}
               </button>
             </div>
 
-            {/* Images */}
             <div>
               <label className="block text-sm text-gray-700 mb-2">Photos (up to 5)</label>
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/*"
-                multiple
-                onChange={handleImageSelect}
-                className="hidden"
-              />
+              <input ref={fileInputRef} type="file" accept="image/*" multiple onChange={handleImageSelect} className="hidden" />
               <div className="flex gap-2 flex-wrap">
                 {imagePreviews.map((preview, i) => (
                   <div key={i} className="relative w-16 h-16 rounded-lg overflow-hidden border border-gray-200">
                     <img src={preview} alt="" className="w-full h-full object-cover" />
-                    <button
-                      onClick={() => removeImage(i)}
-                      className="absolute top-0.5 right-0.5 w-4 h-4 bg-red-500 rounded-full flex items-center justify-center"
-                    >
+                    <button onClick={() => removeImage(i)} className="absolute top-0.5 right-0.5 w-4 h-4 bg-red-500 rounded-full flex items-center justify-center">
                       <X className="w-2.5 h-2.5 text-white" />
                     </button>
-                    {i === 0 && (
-                      <span className="absolute bottom-0 left-0 right-0 bg-black/50 text-white text-[9px] text-center py-0.5">
-                        Cover
-                      </span>
-                    )}
+                    {i === 0 && <span className="absolute bottom-0 left-0 right-0 bg-black/50 text-white text-[9px] text-center py-0.5">Cover</span>}
                   </div>
                 ))}
                 {imagePreviews.length < 5 && (
-                  <button
-                    onClick={() => fileInputRef.current?.click()}
-                    className="w-16 h-16 border-2 border-dashed border-gray-300 rounded-lg flex flex-col items-center justify-center hover:border-[#10B981] transition-colors gap-1"
-                  >
+                  <button onClick={() => fileInputRef.current?.click()}
+                    className="w-16 h-16 border-2 border-dashed border-gray-300 rounded-lg flex flex-col items-center justify-center hover:border-[#10B981] transition-colors gap-1">
                     <Camera className="w-5 h-5 text-gray-400" />
                     <span className="text-[9px] text-gray-400">Add</span>
                   </button>
@@ -663,21 +467,11 @@ export function ProviderServices() {
             </div>
 
             <div className="flex gap-3 pt-2">
-              <button
-                onClick={() => { resetForm(); setActiveTab("listings"); }}
-                className="flex-1 border border-gray-300 text-gray-600 py-3 rounded-xl text-sm"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleSave}
-                disabled={saving}
-                className="flex-1 bg-[#10B981] text-white py-3 rounded-xl text-sm hover:bg-[#0d9668] transition-colors flex items-center justify-center gap-2 disabled:opacity-70"
-              >
-                {saving
-                  ? <><Loader2 className="w-4 h-4 animate-spin" />Saving...</>
-                  : editingId ? "Update Listing" : "Create Listing"
-                }
+              <button onClick={() => { resetForm(); setActiveTab("listings"); }}
+                className="flex-1 border border-gray-300 text-gray-600 py-3 rounded-xl text-sm">Cancel</button>
+              <button onClick={handleSave} disabled={saving}
+                className="flex-1 bg-[#10B981] text-white py-3 rounded-xl text-sm hover:bg-[#0d9668] transition-colors flex items-center justify-center gap-2 disabled:opacity-70">
+                {saving ? <><Loader2 className="w-4 h-4 animate-spin" />Saving...</> : editingId ? "Update Listing" : "Create Listing"}
               </button>
             </div>
           </div>
@@ -686,4 +480,6 @@ export function ProviderServices() {
     </div>
   );
 }
+
+
 

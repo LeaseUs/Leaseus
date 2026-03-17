@@ -1,6 +1,6 @@
 import { useNavigate } from "react-router";
 import { motion } from "motion/react";
-import { Gift } from "lucide-react";
+import { Gift, Building2 } from "lucide-react";
 import bgImage from "../../assets/background.png";
 
 export function Splash() {
@@ -20,6 +20,10 @@ export function Splash() {
     navigate("/signup");
   };
 
+  const handlePartnerRegister = () => {
+    navigate("/partner/register");
+  };
+
   return (
     <div
       className="min-h-screen flex flex-col items-center justify-between px-6 py-8 max-w-md mx-auto relative overflow-hidden"
@@ -30,7 +34,7 @@ export function Splash() {
         backgroundRepeat: 'no-repeat'
       }}
     >
-      {/* Spacer — zebra occupies roughly top 60% of screen, so we push the content below it */}
+      {/* Spacer — zebra occupies roughly top 60% of screen */}
       <div style={{ flex: '0 0 60vh' }}></div>
 
       {/* Bottom Section */}
@@ -94,6 +98,20 @@ export function Splash() {
             Sign In
           </button>
         </motion.div>
+
+        {/* Partner Register Button */}
+        <motion.button
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.8, duration: 0.6 }}
+          onClick={handlePartnerRegister}
+          className="w-full flex items-center justify-center gap-2 py-3 rounded-2xl border border-white/40 bg-white/10 backdrop-blur-sm text-white hover:bg-white/20 transition-all"
+          style={{ fontFamily: 'Syne, sans-serif' }}
+        >
+          <Building2 className="w-4 h-4" />
+          <span className="text-sm font-medium">Register as a Business Partner</span>
+        </motion.button>
+
       </div>
     </div>
   );
