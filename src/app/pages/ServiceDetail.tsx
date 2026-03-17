@@ -11,6 +11,7 @@ export function ServiceDetail() {
   const [paymentMethod, setPaymentMethod] = useState<"fiat" | "leus">("fiat");
   const [loading, setLoading] = useState(true);
   const [booking, setBooking] = useState(false);
+  const [contacting, setContacting] = useState(false);
   const [error, setError] = useState("");
   const [service, setService] = useState<any>(null);
   const [currentUser, setCurrentUser] = useState<any>(null);
@@ -112,6 +113,45 @@ export function ServiceDetail() {
       setService(mockService);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleContactProvider = async () => {
+    if (!currentUser) { navigate("/login"); return; }
+    if (!service.provider_id) return;
+
+    setContacting(true);
+    try {
+      // Check for existing conversation
+      const { data: existing } = await supabase
+        .from("conversations")
+        .select("id")
+        .eq("client_id", currentUser.id)
+        .eq("provider_id", service.provider_id)
+        .maybeSingle();
+
+      if (existing) {
+        navigate(`/home/conversation/${existing.id}`);
+        return;
+      }
+
+      // Create new conversation
+      const { data: newConv, error: convError } = await supabase
+        .from("conversations")
+        .insert({
+          client_id: currentUser.id,
+          provider_id: service.provider_id,
+          last_message_at: new Date().toISOString(),
+        })
+        .select("id")
+        .single();
+
+      if (convError) throw convError;
+      navigate(`/home/conversation/${newConv.id}`);
+    } catch (err: any) {
+      setError(err.message || "Could not start conversation.");
+    } finally {
+      setContacting(false);
     }
   };
 
@@ -379,9 +419,15 @@ export function ServiceDetail() {
 
       {/* Contact Provider */}
       <div className="mt-2 px-4 py-4 bg-white/80 backdrop-blur-md border border-white/30">
-        <button className="w-full border border-[#1E3A8A] text-[#1E3A8A] py-3 rounded-xl hover:bg-gray-50 transition-colors flex items-center justify-center gap-2">
-          <MessageCircle className="w-5 h-5" />
-          Contact Provider
+        <button
+          onClick={handleContactProvider}
+          disabled={contacting || !service.provider_id}
+          className="w-full border border-[#1E3A8A] text-[#1E3A8A] py-3 rounded-xl hover:bg-gray-50 transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
+        >
+          {contacting
+            ? <><Loader2 className="w-5 h-5 animate-spin" />Starting chat...</>
+            : <><MessageCircle className="w-5 h-5" />Contact Provider</>
+          }
         </button>
       </div>
 
@@ -405,3 +451,4 @@ export function ServiceDetail() {
     </div>
   );
 }
+
