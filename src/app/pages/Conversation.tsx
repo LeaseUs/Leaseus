@@ -3,7 +3,7 @@ import { useParams, useNavigate } from "react-router";
 import {
   ArrowLeft, Send, Paperclip, Mic,
   MoreVertical, Flag, Ban, Loader2, CheckCheck, Check, X, Play, Pause,
-  CalendarPlus, ChevronDown,
+  CalendarPlus, ChevronDown, RefreshCw,
 } from "lucide-react";
 import { supabase } from "../../lib/supabase";
 
@@ -12,7 +12,7 @@ type Message = {
   conversation_id: string;
   sender_id: string;
   body: string;
-  type: "text" | "image" | "file" | "voice" | "booking_offer";
+  type: "text" | "image" | "file" | "voice" | "booking_offer" | "reschedule_offer";
   file_url?: string;
   file_name?: string;
   duration_seconds?: number;
@@ -22,6 +22,9 @@ type Message = {
   offer_duration?: string;
   offer_description?: string;
   offer_status?: "pending" | "accepted" | "declined";
+  reschedule_date?: string;
+  reschedule_time?: string;
+  reschedule_status?: "pending" | "accepted" | "declined";
   is_read: boolean;
   created_at: string;
 };
@@ -46,10 +49,11 @@ export function Conversation() {
   const [playingVoice, setPlayingVoice]   = useState<string | null>(null);
   const [uploading, setUploading]         = useState(false);
   const [showOfferForm, setShowOfferForm] = useState(false);
-  const [offerForm, setOfferForm]         = useState({
-    description: "", date: "", time: "", duration: "1 hour", price: "",
-  });
+  const [showRescheduleForm, setShowRescheduleForm] = useState(false);
+  const [offerForm, setOfferForm]         = useState({ description: "", date: "", time: "", duration: "1 hour", price: "" });
+  const [rescheduleForm, setRescheduleForm] = useState({ date: "", time: "", bookingId: "" });
   const [sendingOffer, setSendingOffer]   = useState(false);
+  const [activeBooking, setActiveBooking] = useState<any>(null);
 
   const bottomRef     = useRef<HTMLDivElement>(null);
   const fileInputRef  = useRef<HTMLInputElement>(null);
@@ -62,8 +66,7 @@ export function Conversation() {
 
   useEffect(() => {
     fetchData();
-    const channel = supabase
-      .channel(`conversation:${id}`)
+    const channel = supabase.channel(`conversation:${id}`)
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "messages", filter: `conversation_id=eq.${id}` },
         (payload) => { setMessages(prev => [...prev, payload.new as Message]); markRead(); })
       .on("postgres_changes", { event: "UPDATE", schema: "public", table: "messages", filter: `conversation_id=eq.${id}` },
@@ -83,8 +86,7 @@ export function Conversation() {
       const { data: profileData } = await supabase.from("profiles").select("*").eq("id", user.id).single();
       setProfile(profileData);
 
-      const { data: convData } = await supabase
-        .from("conversations")
+      const { data: convData } = await supabase.from("conversations")
         .select(`id, client_id, provider_id,
           client:profiles!client_id(id, full_name, avatar_url, role),
           provider:profiles!provider_id(id, full_name, avatar_url, role)`)
@@ -97,6 +99,17 @@ export function Conversation() {
         const { data: block } = await supabase.from("user_blocks").select("id")
           .eq("blocker_id", user.id).eq("blocked_id", otherUser?.id).maybeSingle();
         setIsBlocked(!!block);
+
+        // Fetch active booking for this conversation
+        const { data: booking } = await supabase.from("bookings")
+          .select("id, title, status, scheduled_at")
+          .eq("client_id", convData.client_id)
+          .eq("provider_id", convData.provider_id)
+          .in("status", ["pending", "confirmed"])
+          .order("created_at", { ascending: false })
+          .limit(1).maybeSingle();
+        setActiveBooking(booking);
+        if (booking) setRescheduleForm(f => ({ ...f, bookingId: booking.id }));
       }
 
       const { data: msgData } = await supabase.from("messages").select("*")
@@ -126,65 +139,106 @@ export function Conversation() {
       if (error) throw error;
       await supabase.from("conversations").update({ last_message_at: new Date().toISOString() }).eq("id", id);
       setText("");
-    } catch (err: any) { console.error("sendMessage error:", err.message); }
+    } catch (err: any) { console.error(err.message); }
     finally { setSending(false); }
   };
 
+  // ── Send booking offer ─────────────────────────────────────────
   const handleSendOffer = async () => {
     if (!offerForm.description || !offerForm.date || !offerForm.time || !offerForm.price) return;
     setSendingOffer(true);
     try {
       const { error } = await supabase.from("messages").insert({
-        conversation_id:   id,
-        sender_id:         profile.id,
-        body:              "Booking offer",
-        type:              "booking_offer",
-        offer_description: offerForm.description,
-        offer_date:        offerForm.date,
-        offer_time:        offerForm.time,
-        offer_duration:    offerForm.duration,
+        conversation_id:   id, sender_id: profile.id,
+        body:              "Booking offer", type: "booking_offer",
+        offer_description: offerForm.description, offer_date: offerForm.date,
+        offer_time:        offerForm.time, offer_duration: offerForm.duration,
         offer_price_pence: Math.round(parseFloat(offerForm.price) * 100),
-        offer_status:      "pending",
-        is_read:           false,
+        offer_status:      "pending", is_read: false,
       });
       if (error) throw error;
       await supabase.from("conversations").update({ last_message_at: new Date().toISOString() }).eq("id", id);
       setShowOfferForm(false);
       setOfferForm({ description: "", date: "", time: "", duration: "1 hour", price: "" });
-    } catch (err: any) { console.error("sendOffer error:", err.message); }
+    } catch (err: any) { console.error(err.message); }
     finally { setSendingOffer(false); }
   };
 
-  const handleOfferResponse = async (msg: Message, status: "accepted" | "declined") => {
+  // ── Send reschedule offer ──────────────────────────────────────
+  const handleSendReschedule = async () => {
+    if (!rescheduleForm.date || !rescheduleForm.time) return;
+    setSendingOffer(true);
     try {
-      const { error } = await supabase.from("messages").update({ offer_status: status }).eq("id", msg.id);
+      const { error } = await supabase.from("messages").insert({
+        conversation_id:  id, sender_id: profile.id,
+        body:             "Reschedule request", type: "reschedule_offer",
+        reschedule_date:  rescheduleForm.date,
+        reschedule_time:  rescheduleForm.time,
+        reschedule_status: "pending", is_read: false,
+      });
       if (error) throw error;
-      if (status === "accepted" && conv) {
-        const scheduledAt = new Date(`${msg.offer_date} ${msg.offer_time}`).toISOString();
-        const { error: bookingError } = await supabase.from("bookings").insert({
-          listing_id:     null,
-          client_id:      conv.client_id,
-          provider_id:    conv.provider_id,
-          title:          msg.offer_description || "Custom Booking",
-          description:    msg.offer_description,
-          scheduled_at:   scheduledAt,
-          status:         "pending",
-          payment_method: "fiat",
-          amount_pence:   msg.offer_price_pence,
-        });
-        if (bookingError) throw bookingError;
-        navigate("/home/bookings");
-      }
-    } catch (err: any) { console.error("offerResponse error:", err.message); }
+      await supabase.from("conversations").update({ last_message_at: new Date().toISOString() }).eq("id", id);
+      setShowRescheduleForm(false);
+    } catch (err: any) { console.error(err.message); }
+    finally { setSendingOffer(false); }
   };
 
+  // ── Accept/Decline booking offer ───────────────────────────────
+  const handleOfferResponse = async (msg: Message, status: "accepted" | "declined") => {
+    try {
+      await supabase.from("messages").update({ offer_status: status }).eq("id", msg.id);
+      if (status === "accepted" && conv) {
+        // Deduct 50% deposit from client wallet
+        const { data: clientProfile } = await supabase.from("profiles")
+          .select("fiat_balance_pence, leus_balance").eq("id", conv.client_id).single();
+        const depositPence = Math.round((msg.offer_price_pence || 0) * 0.5);
+
+        if (clientProfile && clientProfile.fiat_balance_pence >= depositPence) {
+          await supabase.from("profiles")
+            .update({ fiat_balance_pence: clientProfile.fiat_balance_pence - depositPence })
+            .eq("id", conv.client_id);
+        }
+
+        const scheduledAt = new Date(`${msg.offer_date} ${msg.offer_time}`).toISOString();
+        await supabase.from("bookings").insert({
+          listing_id:    null,
+          client_id:     conv.client_id,
+          provider_id:   conv.provider_id,
+          title:         msg.offer_description || "Custom Booking",
+          description:   msg.offer_description,
+          scheduled_at:  scheduledAt,
+          status:        "confirmed",
+          payment_method: "fiat",
+          amount_pence:  msg.offer_price_pence,
+          deposit_pence: depositPence,
+          deposit_held:  true,
+        });
+        navigate("/home/bookings");
+      }
+    } catch (err: any) { console.error(err.message); }
+  };
+
+  // ── Accept/Decline reschedule ──────────────────────────────────
+  const handleRescheduleResponse = async (msg: Message, status: "accepted" | "declined") => {
+    try {
+      await supabase.from("messages").update({ reschedule_status: status }).eq("id", msg.id);
+      if (status === "accepted" && activeBooking) {
+        const newScheduledAt = new Date(`${msg.reschedule_date} ${msg.reschedule_time}`).toISOString();
+        await supabase.from("bookings").update({
+          scheduled_at:     newScheduledAt,
+          reschedule_status: "accepted",
+        }).eq("id", activeBooking.id);
+        setActiveBooking((b: any) => ({ ...b, scheduled_at: newScheduledAt }));
+      }
+    } catch (err: any) { console.error(err.message); }
+  };
+
+  // ── File upload ────────────────────────────────────────────────
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+    const file = e.target.files?.[0]; if (!file) return;
     setUploading(true);
     try {
-      const ext  = file.name.split(".").pop();
-      const path = `${profile.id}/${Date.now()}.${ext}`;
+      const ext  = file.name.split(".").pop(); const path = `${profile.id}/${Date.now()}.${ext}`;
       const { error: uploadError } = await supabase.storage.from("chat-files").upload(path, file);
       if (uploadError) throw uploadError;
       const { data: urlData } = supabase.storage.from("chat-files").getPublicUrl(path);
@@ -194,6 +248,7 @@ export function Conversation() {
     finally { setUploading(false); if (fileInputRef.current) fileInputRef.current.value = ""; }
   };
 
+  // ── Voice recording ────────────────────────────────────────────
   const startRecording = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -201,74 +256,46 @@ export function Conversation() {
       audioChunks.current   = [];
       mediaRecorder.current.ondataavailable = e => { audioChunks.current.push(e.data); };
       mediaRecorder.current.onstop = async () => {
-        const blob     = new Blob(audioChunks.current, { type: "audio/webm" });
-        const path     = `${profile.id}/voice_${Date.now()}.webm`;
-        const duration = recordSeconds;
+        const blob = new Blob(audioChunks.current, { type: "audio/webm" });
+        const path = `${profile.id}/voice_${Date.now()}.webm`;
         const { error: uploadError } = await supabase.storage.from("chat-files").upload(path, blob);
         if (!uploadError) {
           const { data: urlData } = supabase.storage.from("chat-files").getPublicUrl(path);
-          await sendMessage("Voice note", "voice", urlData.publicUrl, undefined, duration);
+          await sendMessage("Voice note", "voice", urlData.publicUrl, undefined, recordSeconds);
         }
-        stream.getTracks().forEach(t => t.stop());
-        setRecordSeconds(0);
+        stream.getTracks().forEach(t => t.stop()); setRecordSeconds(0);
       };
-      mediaRecorder.current.start();
-      setRecording(true);
-      setRecordSeconds(0);
+      mediaRecorder.current.start(); setRecording(true); setRecordSeconds(0);
       recordTimer.current = setInterval(() => setRecordSeconds(s => s + 1), 1000);
-    } catch (err) { console.error("Microphone access denied:", err); }
+    } catch (err) { console.error(err); }
   };
 
-  const stopRecording = () => {
-    mediaRecorder.current?.stop();
-    setRecording(false);
-    if (recordTimer.current) clearInterval(recordTimer.current);
-  };
-
+  const stopRecording = () => { mediaRecorder.current?.stop(); setRecording(false); if (recordTimer.current) clearInterval(recordTimer.current); };
   const cancelRecording = () => {
-    if (mediaRecorder.current?.state === "recording") {
-      audioChunks.current          = [];
-      mediaRecorder.current.onstop = () => {};
-      mediaRecorder.current.stop();
-    }
-    setRecording(false);
-    setRecordSeconds(0);
-    if (recordTimer.current) clearInterval(recordTimer.current);
+    if (mediaRecorder.current?.state === "recording") { audioChunks.current = []; mediaRecorder.current.onstop = () => {}; mediaRecorder.current.stop(); }
+    setRecording(false); setRecordSeconds(0); if (recordTimer.current) clearInterval(recordTimer.current);
   };
 
   const toggleVoice = (msgId: string, url: string) => {
-    if (playingVoice === msgId) {
-      audioRefs.current[msgId]?.pause();
-      setPlayingVoice(null);
-    } else {
+    if (playingVoice === msgId) { audioRefs.current[msgId]?.pause(); setPlayingVoice(null); }
+    else {
       if (playingVoice && audioRefs.current[playingVoice]) audioRefs.current[playingVoice].pause();
-      if (!audioRefs.current[msgId]) {
-        audioRefs.current[msgId]          = new Audio(url);
-        audioRefs.current[msgId].onended = () => setPlayingVoice(null);
-      }
-      audioRefs.current[msgId].play();
-      setPlayingVoice(msgId);
+      if (!audioRefs.current[msgId]) { audioRefs.current[msgId] = new Audio(url); audioRefs.current[msgId].onended = () => setPlayingVoice(null); }
+      audioRefs.current[msgId].play(); setPlayingVoice(msgId);
     }
   };
 
   const handleBlock = async () => {
     if (!other) return;
-    if (isBlocked) {
-      await supabase.from("user_blocks").delete().eq("blocker_id", profile.id).eq("blocked_id", other.id);
-      setIsBlocked(false);
-    } else {
-      await supabase.from("user_blocks").insert({ blocker_id: profile.id, blocked_id: other.id });
-      setIsBlocked(true);
-    }
+    if (isBlocked) { await supabase.from("user_blocks").delete().eq("blocker_id", profile.id).eq("blocked_id", other.id); setIsBlocked(false); }
+    else { await supabase.from("user_blocks").insert({ blocker_id: profile.id, blocked_id: other.id }); setIsBlocked(true); }
     setShowMenu(false);
   };
 
   const handleReport = async () => {
     if (!reportReason.trim()) return;
     await supabase.from("reports").insert({ reporter_id: profile.id, reported_id: other.id, conversation_id: id, reason: reportReason });
-    setShowReport(false);
-    setReportReason("");
-    alert("Report submitted. Our team will review it within 24 hours.");
+    setShowReport(false); setReportReason(""); alert("Report submitted.");
   };
 
   const getInitials  = (name: string) => name?.split(" ").map((n: string) => n[0]).join("").toUpperCase() || "?";
@@ -285,8 +312,7 @@ export function Conversation() {
         <button onClick={() => navigate(-1)} className="text-white"><ArrowLeft className="w-5 h-5" /></button>
         {other?.avatar_url
           ? <img src={other.avatar_url} alt="" className="w-10 h-10 rounded-full object-cover" />
-          : <div className="w-10 h-10 rounded-full bg-[#10B981] flex items-center justify-center text-white font-semibold text-sm">{getInitials(other?.full_name || "")}</div>
-        }
+          : <div className="w-10 h-10 rounded-full bg-[#10B981] flex items-center justify-center text-white font-semibold text-sm">{getInitials(other?.full_name || "")}</div>}
         <div className="flex-1">
           <h2 className="text-white font-semibold text-sm">{other?.full_name || "Unknown"}</h2>
           <p className="text-white/60 text-xs capitalize">{other?.role || "User"}</p>
@@ -306,10 +332,21 @@ export function Conversation() {
         </button>
       </div>
 
+      {/* Active booking banner */}
+      {activeBooking && (
+        <div className="mx-4 mt-3 bg-blue-50 border border-blue-200 rounded-xl px-3 py-2 flex items-center justify-between">
+          <div>
+            <p className="text-xs font-medium text-blue-800">{activeBooking.title}</p>
+            <p className="text-xs text-blue-600 capitalize">{activeBooking.status} · {activeBooking.scheduled_at ? new Date(activeBooking.scheduled_at).toLocaleDateString("en-GB") : "TBD"}</p>
+          </div>
+          <button onClick={() => navigate("/home/bookings")} className="text-xs text-blue-700 font-medium">View →</button>
+        </div>
+      )}
+
       {/* Privacy notice */}
-      <div className="mx-4 mt-3 bg-blue-50 border border-blue-200 rounded-xl px-3 py-2 flex items-center gap-2">
+      <div className="mx-4 mt-2 bg-white/50 border border-white/30 rounded-xl px-3 py-2 flex items-center gap-2">
         <span className="text-xs">🔒</span>
-        <p className="text-xs text-blue-700">Messages are private. Only admins can view them for dispute resolution.</p>
+        <p className="text-xs text-gray-500">Messages are private. Only admins can view them for dispute resolution.</p>
       </div>
 
       {/* Messages */}
@@ -325,7 +362,7 @@ export function Conversation() {
           <div key={msg.id} className={`flex ${isMine(msg) ? "justify-end" : "justify-start"}`}>
 
             {/* Booking offer card */}
-            {msg.type === "booking_offer" ? (
+            {msg.type === "booking_offer" && (
               <div className="max-w-[85%] w-full">
                 <div className={`rounded-2xl overflow-hidden shadow-sm border ${isMine(msg) ? "border-[#1E3A8A]/20" : "border-[#10B981]/30"}`}>
                   <div className={`px-4 py-3 flex items-center gap-2 ${isMine(msg) ? "bg-[#1E3A8A]" : "bg-[#10B981]"}`}>
@@ -340,19 +377,17 @@ export function Conversation() {
                       <div><span className="text-gray-400">Date</span><p className="font-medium text-gray-800">{msg.offer_date}</p></div>
                       <div><span className="text-gray-400">Time</span><p className="font-medium text-gray-800">{msg.offer_time}</p></div>
                       <div><span className="text-gray-400">Duration</span><p className="font-medium text-gray-800">{msg.offer_duration}</p></div>
-                      <div><span className="text-gray-400">Price</span><p className="font-medium text-[#1E3A8A]">£{((msg.offer_price_pence || 0) / 100).toFixed(2)}</p></div>
+                      <div><span className="text-gray-400">Total Price</span><p className="font-medium text-[#1E3A8A]">£{((msg.offer_price_pence || 0) / 100).toFixed(2)}</p></div>
                     </div>
-                    {/* Only client sees Accept/Decline, only when pending */}
+                    <div className="bg-blue-50 rounded-lg px-3 py-2 text-xs text-blue-700">
+                      50% deposit on accept: £{(((msg.offer_price_pence || 0) / 100) * 0.5).toFixed(2)}
+                    </div>
                     {!isMine(msg) && !isProvider && msg.offer_status === "pending" && (
-                      <div className="flex gap-2 pt-2">
+                      <div className="flex gap-2 pt-1">
                         <button onClick={() => handleOfferResponse(msg, "declined")}
-                          className="flex-1 border border-gray-300 text-gray-600 py-2 rounded-xl text-sm hover:bg-gray-50 transition-colors">
-                          Decline
-                        </button>
+                          className="flex-1 border border-gray-300 text-gray-600 py-2 rounded-xl text-sm hover:bg-gray-50 transition-colors">Decline</button>
                         <button onClick={() => handleOfferResponse(msg, "accepted")}
-                          className="flex-1 bg-[#10B981] text-white py-2 rounded-xl text-sm hover:bg-[#0d9668] transition-colors">
-                          Accept & Book
-                        </button>
+                          className="flex-1 bg-[#10B981] text-white py-2 rounded-xl text-sm hover:bg-[#0d9668] transition-colors">Accept & Pay Deposit</button>
                       </div>
                     )}
                   </div>
@@ -361,8 +396,42 @@ export function Conversation() {
                   </div>
                 </div>
               </div>
-            ) : (
-              /* Regular message */
+            )}
+
+            {/* Reschedule offer card */}
+            {msg.type === "reschedule_offer" && (
+              <div className="max-w-[85%] w-full">
+                <div className="rounded-2xl overflow-hidden shadow-sm border border-orange-200">
+                  <div className="px-4 py-3 flex items-center gap-2 bg-orange-500">
+                    <RefreshCw className="w-4 h-4 text-white" />
+                    <span className="text-white text-sm font-semibold">Reschedule Request</span>
+                    {msg.reschedule_status === "accepted" && <span className="ml-auto text-xs bg-white/20 text-white px-2 py-0.5 rounded-full">✓ Accepted</span>}
+                    {msg.reschedule_status === "declined" && <span className="ml-auto text-xs bg-white/20 text-white px-2 py-0.5 rounded-full">✗ Declined</span>}
+                  </div>
+                  <div className="bg-white/90 px-4 py-3 space-y-2">
+                    <p className="text-xs text-gray-500">New proposed time:</p>
+                    <div className="grid grid-cols-2 gap-2 text-xs">
+                      <div><span className="text-gray-400">Date</span><p className="font-medium text-gray-800">{msg.reschedule_date}</p></div>
+                      <div><span className="text-gray-400">Time</span><p className="font-medium text-gray-800">{msg.reschedule_time}</p></div>
+                    </div>
+                    {!isMine(msg) && msg.reschedule_status === "pending" && (
+                      <div className="flex gap-2 pt-1">
+                        <button onClick={() => handleRescheduleResponse(msg, "declined")}
+                          className="flex-1 border border-gray-300 text-gray-600 py-2 rounded-xl text-sm hover:bg-gray-50 transition-colors">Decline</button>
+                        <button onClick={() => handleRescheduleResponse(msg, "accepted")}
+                          className="flex-1 bg-orange-500 text-white py-2 rounded-xl text-sm hover:bg-orange-600 transition-colors">Accept</button>
+                      </div>
+                    )}
+                  </div>
+                  <div className="bg-white/90 px-4 pb-2 flex justify-end">
+                    <span className="text-xs text-gray-400">{formatTime(msg.created_at)}</span>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Regular message */}
+            {msg.type !== "booking_offer" && msg.type !== "reschedule_offer" && (
               <div className={`max-w-[75%] rounded-2xl px-4 py-2.5 shadow-sm ${isMine(msg) ? "bg-[#1E3A8A] text-white rounded-br-sm" : "bg-white/90 text-gray-800 rounded-bl-sm border border-white/30"}`}>
                 {(msg.type === "text" || !msg.type) && <p className="text-sm leading-relaxed">{msg.body}</p>}
                 {msg.type === "image" && msg.file_url && (
@@ -401,19 +470,18 @@ export function Conversation() {
         </div>
       )}
 
-      {/* Booking offer form — provider only */}
+      {/* Booking offer form */}
       {showOfferForm && isProvider && (
         <div className="mx-4 mb-2 bg-white/90 backdrop-blur-md rounded-2xl border border-[#1E3A8A]/20 shadow-lg p-4 space-y-3">
           <div className="flex items-center justify-between mb-1">
-            <h3 className="text-sm font-semibold text-gray-800 flex items-center gap-2">
-              <CalendarPlus className="w-4 h-4 text-[#1E3A8A]" />New Booking Offer
-            </h3>
+            <h3 className="text-sm font-semibold text-gray-800 flex items-center gap-2"><CalendarPlus className="w-4 h-4 text-[#1E3A8A]" />New Booking Offer</h3>
             <button onClick={() => setShowOfferForm(false)}><X className="w-4 h-4 text-gray-400" /></button>
           </div>
           <div>
             <label className="block text-xs text-gray-500 mb-1">Service description *</label>
             <input value={offerForm.description} onChange={e => setOfferForm(f => ({ ...f, description: e.target.value }))}
-              placeholder="e.g. Deep house cleaning" className="w-full px-3 py-2 bg-gray-50 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#10B981]" />
+              placeholder="e.g. Deep house cleaning"
+              className="w-full px-3 py-2 bg-gray-50 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#10B981]" />
           </div>
           <div className="grid grid-cols-2 gap-2">
             <div>
@@ -435,14 +503,12 @@ export function Conversation() {
                 <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-3 h-3 text-gray-400 pointer-events-none" />
                 <select value={offerForm.duration} onChange={e => setOfferForm(f => ({ ...f, duration: e.target.value }))}
                   className="w-full px-3 py-2 bg-gray-50 rounded-xl border border-gray-200 text-sm appearance-none focus:outline-none focus:ring-2 focus:ring-[#10B981]">
-                  {["30 mins","1 hour","1.5 hours","2 hours","3 hours","4 hours","Half day","Full day"].map(d => (
-                    <option key={d} value={d}>{d}</option>
-                  ))}
+                  {["30 mins","1 hour","1.5 hours","2 hours","3 hours","4 hours","Half day","Full day"].map(d => <option key={d} value={d}>{d}</option>)}
                 </select>
               </div>
             </div>
             <div>
-              <label className="block text-xs text-gray-500 mb-1">Price (£) *</label>
+              <label className="block text-xs text-gray-500 mb-1">Total Price (£) *</label>
               <div className="relative">
                 <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">£</span>
                 <input type="number" value={offerForm.price} onChange={e => setOfferForm(f => ({ ...f, price: e.target.value }))}
@@ -451,9 +517,42 @@ export function Conversation() {
               </div>
             </div>
           </div>
+          {offerForm.price && (
+            <div className="bg-blue-50 rounded-lg px-3 py-2 text-xs text-blue-700">
+              Client pays 50% deposit on accept: £{(parseFloat(offerForm.price || "0") * 0.5).toFixed(2)}
+            </div>
+          )}
           <button onClick={handleSendOffer} disabled={sendingOffer || !offerForm.description || !offerForm.date || !offerForm.time || !offerForm.price}
             className="w-full bg-[#1E3A8A] text-white py-2.5 rounded-xl text-sm font-medium flex items-center justify-center gap-2 disabled:opacity-60 hover:bg-[#152d6b] transition-colors">
             {sendingOffer ? <><Loader2 className="w-4 h-4 animate-spin" />Sending...</> : <><CalendarPlus className="w-4 h-4" />Send Booking Offer</>}
+          </button>
+        </div>
+      )}
+
+      {/* Reschedule form */}
+      {showRescheduleForm && isProvider && activeBooking && (
+        <div className="mx-4 mb-2 bg-white/90 backdrop-blur-md rounded-2xl border border-orange-200 shadow-lg p-4 space-y-3">
+          <div className="flex items-center justify-between mb-1">
+            <h3 className="text-sm font-semibold text-gray-800 flex items-center gap-2"><RefreshCw className="w-4 h-4 text-orange-500" />Propose Reschedule</h3>
+            <button onClick={() => setShowRescheduleForm(false)}><X className="w-4 h-4 text-gray-400" /></button>
+          </div>
+          <p className="text-xs text-gray-500">Current booking: <span className="font-medium text-gray-700">{activeBooking.title}</span></p>
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <label className="block text-xs text-gray-500 mb-1">New Date *</label>
+              <input type="date" value={rescheduleForm.date} min={new Date().toISOString().split("T")[0]}
+                onChange={e => setRescheduleForm(f => ({ ...f, date: e.target.value }))}
+                className="w-full px-3 py-2 bg-gray-50 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#10B981]" />
+            </div>
+            <div>
+              <label className="block text-xs text-gray-500 mb-1">New Time *</label>
+              <input type="time" value={rescheduleForm.time} onChange={e => setRescheduleForm(f => ({ ...f, time: e.target.value }))}
+                className="w-full px-3 py-2 bg-gray-50 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#10B981]" />
+            </div>
+          </div>
+          <button onClick={handleSendReschedule} disabled={sendingOffer || !rescheduleForm.date || !rescheduleForm.time}
+            className="w-full bg-orange-500 text-white py-2.5 rounded-xl text-sm font-medium flex items-center justify-center gap-2 disabled:opacity-60 hover:bg-orange-600 transition-colors">
+            {sendingOffer ? <><Loader2 className="w-4 h-4 animate-spin" />Sending...</> : <><RefreshCw className="w-4 h-4" />Send Reschedule Request</>}
           </button>
         </div>
       )}
@@ -478,11 +577,19 @@ export function Conversation() {
                 {uploading ? <Loader2 className="w-4 h-4 animate-spin text-gray-500" /> : <Paperclip className="w-4 h-4 text-gray-500" />}
               </button>
 
-              {/* Booking offer button — provider only */}
+              {/* Provider: booking offer button */}
               {isProvider && (
-                <button onClick={() => setShowOfferForm(f => !f)}
+                <button onClick={() => { setShowOfferForm(f => !f); setShowRescheduleForm(false); }}
                   className={`w-10 h-10 rounded-xl flex items-center justify-center shadow-sm border flex-shrink-0 transition-colors ${showOfferForm ? "bg-[#1E3A8A] border-[#1E3A8A]" : "bg-white/80 border-white/30 hover:border-[#1E3A8A]"}`}>
                   <CalendarPlus className={`w-4 h-4 ${showOfferForm ? "text-white" : "text-[#1E3A8A]"}`} />
+                </button>
+              )}
+
+              {/* Provider: reschedule button (only if active booking exists) */}
+              {isProvider && activeBooking && (
+                <button onClick={() => { setShowRescheduleForm(f => !f); setShowOfferForm(false); }}
+                  className={`w-10 h-10 rounded-xl flex items-center justify-center shadow-sm border flex-shrink-0 transition-colors ${showRescheduleForm ? "bg-orange-500 border-orange-500" : "bg-white/80 border-white/30 hover:border-orange-400"}`}>
+                  <RefreshCw className={`w-4 h-4 ${showRescheduleForm ? "text-white" : "text-orange-500"}`} />
                 </button>
               )}
 
@@ -518,7 +625,6 @@ export function Conversation() {
               <h3 className="text-lg font-semibold text-gray-800">Report User</h3>
               <button onClick={() => setShowReport(false)}><X className="w-5 h-5 text-gray-500" /></button>
             </div>
-            <p className="text-sm text-gray-600 mb-4">Reports are reviewed by our admin team within 24 hours. The reported user will not be notified.</p>
             <div className="space-y-2 mb-4">
               {["Spam or scam","Inappropriate behaviour","Harassment","Fake profile","Other"].map(r => (
                 <button key={r} onClick={() => setReportReason(r)}

@@ -3,7 +3,7 @@ import { useNavigate } from "react-router";
 import {
   Plus, Edit2, Trash2, Eye, EyeOff, Loader2,
   Camera, X, ChevronDown, DollarSign, CheckCircle,
-  BarChart2, TrendingUp, Users, Package,
+  BarChart2, TrendingUp, Users, Package, MapPin, Navigation,
 } from "lucide-react";
 import { supabase } from "../../lib/supabase";
 import {
@@ -17,7 +17,7 @@ const CATEGORIES = [
   "Legal Services","Accounting / Finance","Moving / Removals",
   "Pest Control","Electrical","Gardening / Landscaping",
   "Personal Training","Catering / Events","Pet Care / Grooming",
-  "Security Services","Laundry / Ironing","Other",
+  "Security Services","Laundry / Ironing","Repairs","Other",
 ];
 
 type Tab = "listings" | "analytics" | "add";
@@ -33,6 +33,7 @@ export function ProviderServices() {
   const [success, setSuccess]               = useState("");
   const [editingId, setEditingId]           = useState<string | null>(null);
   const [analytics, setAnalytics]           = useState<any>(null);
+  const [detectingLocation, setDetectingLocation] = useState(false);
   const fileInputRef                        = useRef<HTMLInputElement>(null);
 
   const [form, setForm] = useState({
@@ -40,6 +41,8 @@ export function ProviderServices() {
     price_pence: "", price_type: "fixed",
     booking_type: "fixed",
     accepts_leus: true, status: "active",
+    location_city: "", is_remote: false,
+    lat: "", lng: "",
   });
   const [images, setImages]               = useState<File[]>([]);
   const [imagePreviews, setImagePreviews] = useState<string[]>([]);
@@ -99,8 +102,21 @@ export function ProviderServices() {
   };
 
   const resetForm = () => {
-    setForm({ title: "", description: "", category: "", price_pence: "", price_type: "fixed", booking_type: "fixed", accepts_leus: true, status: "active" });
+    setForm({ title: "", description: "", category: "", price_pence: "", price_type: "fixed", booking_type: "fixed", accepts_leus: true, status: "active", location_city: "", is_remote: false, lat: "", lng: "" });
     setImages([]); setImagePreviews([]); setEditingId(null); setError("");
+  };
+
+  const detectLocation = () => {
+    if (!navigator.geolocation) { setError("Geolocation not supported."); return; }
+    setDetectingLocation(true);
+    navigator.geolocation.getCurrentPosition(
+      ({ coords }) => {
+        setForm(f => ({ ...f, lat: coords.latitude.toFixed(6), lng: coords.longitude.toFixed(6) }));
+        setDetectingLocation(false);
+      },
+      () => { setError("Could not detect location."); setDetectingLocation(false); },
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+    );
   };
 
   const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -123,15 +139,19 @@ export function ProviderServices() {
       if (!user) return;
 
       const listingData: any = {
-        provider_id:  user.id,
-        title:        form.title,
-        description:  form.description,
-        category:     form.category,
-        price_pence:  Math.round(parseFloat(form.price_pence) * 100),
-        price_type:   form.price_type,
-        booking_type: form.booking_type,
-        accepts_leus: form.accepts_leus,
-        status:       form.status,
+        provider_id:   user.id,
+        title:         form.title,
+        description:   form.description,
+        category:      form.category,
+        price_pence:   Math.round(parseFloat(form.price_pence) * 100),
+        price_type:    form.price_type,
+        booking_type:  form.booking_type,
+        accepts_leus:  form.accepts_leus,
+        status:        form.status,
+        location_city: form.location_city || null,
+        is_remote:     form.is_remote,
+        lat:           form.lat ? parseFloat(form.lat) : null,
+        lng:           form.lng ? parseFloat(form.lng) : null,
       };
 
       let listingId = editingId;
@@ -144,7 +164,6 @@ export function ProviderServices() {
         listingId = data.id;
       }
 
-      // Upload images
       for (let i = 0; i < images.length; i++) {
         const file = images[i];
         const ext  = file.name.split(".").pop() || "jpg";
@@ -164,14 +183,18 @@ export function ProviderServices() {
 
   const handleEdit = (listing: any) => {
     setForm({
-      title:        listing.title,
-      description:  listing.description || "",
-      category:     listing.category || "",
-      price_pence:  String((listing.price_pence || 0) / 100),
-      price_type:   listing.price_type || "fixed",
-      booking_type: listing.booking_type || "fixed",
-      accepts_leus: listing.accepts_leus,
-      status:       listing.status,
+      title:         listing.title,
+      description:   listing.description || "",
+      category:      listing.category || "",
+      price_pence:   String((listing.price_pence || 0) / 100),
+      price_type:    listing.price_type || "fixed",
+      booking_type:  listing.booking_type || "fixed",
+      accepts_leus:  listing.accepts_leus,
+      status:        listing.status,
+      location_city: listing.location_city || "",
+      is_remote:     listing.is_remote || false,
+      lat:           listing.lat ? String(listing.lat) : "",
+      lng:           listing.lng ? String(listing.lng) : "",
     });
     setEditingId(listing.id); setImages([]); setImagePreviews([]); setActiveTab("add");
   };
@@ -261,11 +284,17 @@ export function ProviderServices() {
                       <h3 className="text-sm font-semibold text-gray-800 flex-1">{listing.title}</h3>
                       <span className={`text-xs px-2 py-0.5 rounded-full ml-2 ${listing.status === "active" ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-500"}`}>{listing.status}</span>
                     </div>
-                    <div className="flex items-center gap-2 mb-1">
+                    <div className="flex items-center gap-2 mb-1 flex-wrap">
                       <p className="text-xs text-gray-500">{listing.category}</p>
                       <span className={`text-xs px-1.5 py-0.5 rounded-full ${listing.booking_type === "negotiable" ? "bg-orange-100 text-orange-700" : "bg-blue-100 text-blue-700"}`}>
                         {listing.booking_type === "negotiable" ? "Negotiable" : "Fixed"}
                       </span>
+                      {listing.location_city && (
+                        <span className="flex items-center gap-0.5 text-xs text-gray-400">
+                          <MapPin className="w-3 h-3" />{listing.location_city}
+                        </span>
+                      )}
+                      {listing.is_remote && <span className="text-xs bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded-full">Remote</span>}
                     </div>
                     <div className="flex items-center justify-between">
                       <span className="text-sm font-semibold text-[#1E3A8A]">£{((listing.price_pence || 0) / 100).toFixed(2)}{listing.price_type === "hourly" ? "/hr" : ""}</span>
@@ -431,6 +460,59 @@ export function ProviderServices() {
               </div>
             </div>
 
+            {/* Location */}
+            <div>
+              <label className="block text-sm text-gray-700 mb-2">Location</label>
+              <div className="space-y-3">
+                <div className="flex gap-2">
+                  <button type="button" onClick={() => setForm(f => ({ ...f, is_remote: false }))}
+                    className={`flex-1 py-2.5 rounded-xl text-sm border transition-colors ${!form.is_remote ? "bg-[#1E3A8A]/10 border-[#1E3A8A] text-[#1E3A8A]" : "bg-gray-50 border-gray-200 text-gray-500"}`}>
+                    On-site
+                  </button>
+                  <button type="button" onClick={() => setForm(f => ({ ...f, is_remote: true }))}
+                    className={`flex-1 py-2.5 rounded-xl text-sm border transition-colors ${form.is_remote ? "bg-purple-50 border-purple-400 text-purple-700" : "bg-gray-50 border-gray-200 text-gray-500"}`}>
+                    Remote
+                  </button>
+                </div>
+
+                {!form.is_remote && (
+                  <>
+                    <input value={form.location_city} onChange={e => setForm(f => ({ ...f, location_city: e.target.value }))}
+                      placeholder="City (e.g. London)"
+                      className="w-full px-4 py-3 bg-gray-50 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#10B981] text-sm" />
+
+                    <button type="button" onClick={detectLocation} disabled={detectingLocation}
+                      className="w-full flex items-center justify-center gap-2 border-2 border-[#10B981] text-[#10B981] py-2.5 rounded-xl hover:bg-[#10B981]/5 transition-colors text-sm disabled:opacity-60">
+                      {detectingLocation
+                        ? <><Loader2 className="w-4 h-4 animate-spin" />Detecting...</>
+                        : <><Navigation className="w-4 h-4" />Use My Current Location</>
+                      }
+                    </button>
+
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <label className="block text-xs text-gray-500 mb-1">Latitude</label>
+                        <input value={form.lat} onChange={e => setForm(f => ({ ...f, lat: e.target.value }))}
+                          placeholder="51.5074"
+                          className="w-full px-3 py-2.5 bg-gray-50 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#10B981] text-sm" />
+                      </div>
+                      <div>
+                        <label className="block text-xs text-gray-500 mb-1">Longitude</label>
+                        <input value={form.lng} onChange={e => setForm(f => ({ ...f, lng: e.target.value }))}
+                          placeholder="-0.1276"
+                          className="w-full px-3 py-2.5 bg-gray-50 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#10B981] text-sm" />
+                      </div>
+                    </div>
+                    {form.lat && form.lng && (
+                      <div className="flex items-center gap-2 text-xs text-green-700 bg-green-50 px-3 py-2 rounded-lg">
+                        <MapPin className="w-3.5 h-3.5" />Location set — this listing will appear on the map
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+            </div>
+
             <div className="flex gap-3">
               <button type="button" onClick={() => setForm(f => ({ ...f, accepts_leus: !f.accepts_leus }))}
                 className={`flex-1 py-2.5 rounded-xl text-sm font-medium transition-colors border ${form.accepts_leus ? "bg-[#10B981]/10 border-[#10B981] text-[#10B981]" : "bg-gray-50 border-gray-200 text-gray-500"}`}>
@@ -480,6 +562,7 @@ export function ProviderServices() {
     </div>
   );
 }
+
 
 
 
