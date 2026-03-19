@@ -117,7 +117,7 @@ function ClientServicesView() {
 
   const formatPrice = (l: Listing) => {
     if (l.price_pence) return `£${l.price_pence / 100}${l.price_type === "hourly" ? "/hr" : ""}`;
-    if (l.price_leus) return `Ł${l.price_leus}`;
+    if (l.price_leus) return `<span className="leus">ᛃ</span>${l.price_leus}`;
     return "Quote";
   };
 
@@ -581,3 +581,5 @@ function ProviderServicesView() {
     </div>
   );
 }
+
+

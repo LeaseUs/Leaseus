@@ -179,8 +179,8 @@ export function Bookings() {
   const completedStatuses = ["completed", "cancelled", "disputed"];
   const filteredBookings  = bookings.filter(b => activeTab === "active" ? activeStatuses.includes(b.status) : completedStatuses.includes(b.status));
   const formatDate        = (d: string) => new Date(d).toLocaleDateString("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
-  const formatAmount      = (b: any) => b.payment_method === "fiat" ? `£${((b.amount_pence || 0) / 100).toFixed(2)}` : `Ł${Number(b.amount_leus || 0).toFixed(2)}`;
-  const formatDeposit     = (b: any) => b.payment_method === "fiat" ? `£${((b.deposit_pence || 0) / 100).toFixed(2)}` : `Ł${Number(b.deposit_leus || 0).toFixed(2)}`;
+  const formatAmount      = (b: any) => b.payment_method === "fiat" ? `£${((b.amount_pence || 0) / 100).toFixed(2)}` : `<span className="leus">ᛃ</span>${Number(b.amount_leus || 0).toFixed(2)}`;
+  const formatDeposit     = (b: any) => b.payment_method === "fiat" ? `£${((b.deposit_pence || 0) / 100).toFixed(2)}` : `<span className="leus">ᛃ</span>${Number(b.deposit_leus || 0).toFixed(2)}`;
 
   if (loading) return <div className="min-h-screen flex items-center justify-center"><Loader2 className="w-8 h-8 animate-spin text-[#1E3A8A]" /></div>;
 
@@ -386,6 +386,8 @@ export function Bookings() {
     </div>
   );
 }
+
+
 
 
 

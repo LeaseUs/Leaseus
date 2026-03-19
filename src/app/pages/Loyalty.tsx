@@ -193,7 +193,7 @@ export function Loyalty() {
           {converting ? (
             <><Loader2 className="w-4 h-4 animate-spin" />Converting...</>
           ) : (
-            <><Sparkles className="w-4 h-4" />Convert {currentPoints} Points to Ł{(currentPoints / conversionRate).toFixed(2)} LEUS</>
+            <><Sparkles className="w-4 h-4" />Convert {currentPoints} Points to <span className="leus">ᛃ</span>{(currentPoints / conversionRate).toFixed(2)} LEUS</>
           )}
         </button>
         {currentPoints < 100 && (
@@ -224,7 +224,7 @@ export function Loyalty() {
             <div className="flex items-center justify-between">
               <span className="text-xs text-gray-600">{currentPoints} points</span>
               <ArrowRight className="w-4 h-4 text-green-600" />
-              <span className="text-lg text-[#10B981]">Ł{(currentPoints / conversionRate).toFixed(2)}</span>
+              <span className="text-lg text-[#10B981]"><span className="leus">ᛃ</span>{(currentPoints / conversionRate).toFixed(2)}</span>
             </div>
           </div>
         </div>
@@ -279,3 +279,5 @@ export function Loyalty() {
     </div>
   );
 }
+
+

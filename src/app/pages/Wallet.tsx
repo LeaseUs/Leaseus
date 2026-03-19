@@ -102,7 +102,7 @@ export function Wallet() {
       } else {
         const { error } = await supabase.rpc("convert_leus_to_fiat", { p_user_id: user.id, p_leus: Number(convertAmount) });
         if (error) throw error;
-        setSuccess(`Converted Ł${convertAmount} to GBP!`);
+        setSuccess(`Converted <span className="leus">ᛃ</span>${convertAmount} to GBP!`);
       }
       setConvertAmount(""); setShowConvert(false);
       fetchWalletData();
@@ -123,7 +123,7 @@ export function Wallet() {
         body: { leus_amount: Number(amount), pin, type: "standard" },
       });
       if (error) throw error;
-      setSuccess(`MintLeaf for Ł${amount} created!`);
+      setSuccess(`MintLeaf for <span className="leus">ᛃ</span>${amount} created!`);
       setAmount(""); setPin("");
       fetchWalletData();
     } catch (err: any) {
@@ -142,7 +142,7 @@ export function Wallet() {
   };
 
   const getTxAmount = (tx: Transaction) => {
-    if (tx.leus_delta !== 0) return `${tx.leus_delta > 0 ? "+" : ""}Ł${Math.abs(tx.leus_delta).toFixed(2)}`;
+    if (tx.leus_delta !== 0) return `${tx.leus_delta > 0 ? "+" : ""}<span className="leus">ᛃ</span>${Math.abs(tx.leus_delta).toFixed(2)}`;
     if (tx.fiat_delta_pence !== 0) return `${tx.fiat_delta_pence > 0 ? "+" : "-"}£${(Math.abs(tx.fiat_delta_pence) / 100).toFixed(2)}`;
     if (tx.points_delta !== 0) return `${tx.points_delta > 0 ? "+" : ""}${tx.points_delta} pts`;
     return "-";
@@ -207,7 +207,7 @@ export function Wallet() {
           <div className="bg-gradient-to-br from-[#10B981]/90 to-[#14B8A6]/90 backdrop-blur-md rounded-xl p-4 text-white border border-white/30">
             <div className="flex items-center justify-between mb-2">
               <span className="text-xs opacity-90">LEUS Balance</span>
-              <span className="text-lg">Ł</span>
+              <span className="text-lg"><span className="leus">ᛃ</span></span>
             </div>
             <p className="text-xl mb-3">{leusBalance}</p>
             <div className="flex gap-2">
@@ -306,7 +306,7 @@ export function Wallet() {
             <input type="password" value={pin} onChange={(e) => setPin(e.target.value)}
               placeholder="PIN" className="w-full px-3 py-2 rounded-lg border border-gray-300 focus:outline-none focus:border-[#10B981] mb-4" />
             <p className="text-xs text-gray-500 mb-3">
-              Available: Ł{leusBalance} · Fee: {profile?.subscription_tier === "premium" ? "0%" : profile?.subscription_tier === "standard" ? "0.5%" : "1%"}
+              Available: <span className="leus">ᛃ</span>{leusBalance} · Fee: {profile?.subscription_tier === "premium" ? "0%" : profile?.subscription_tier === "standard" ? "0.5%" : "1%"}
             </p>
             <button onClick={handleMintLeaf} disabled={minting}
               className="bg-[#10B981] text-white text-sm px-4 py-2 rounded-lg flex items-center gap-2 disabled:opacity-70">
@@ -352,7 +352,7 @@ export function Wallet() {
                   <div key={ml.id} className="flex items-center gap-2">
                     <CheckCircle className={`w-4 h-4 ${ml.status === "active" ? "text-[#10B981]" : "text-gray-400"}`} />
                     <div>
-                      <p className="text-sm text-gray-800">Ł{ml.leus_amount} · {ml.type}</p>
+                      <p className="text-sm text-gray-800"><span className="leus">ᛃ</span>{ml.leus_amount} · {ml.type}</p>
                       <p className="text-xs text-gray-500">{ml.status} · {formatDate(ml.created_at)}</p>
                     </div>
                   </div>
@@ -403,3 +403,5 @@ export function Wallet() {
     </div>
   );
 }
+
+

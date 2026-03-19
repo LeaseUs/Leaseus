@@ -128,7 +128,7 @@ export function Subscriptions() {
         }
       } else {
         if (Number(profile.leus_balance) < selectedTier.priceLeus) {
-          setError(`Insufficient LEUS balance. You need Ł${selectedTier.priceLeus} but have Ł${Number(profile.leus_balance).toFixed(2)}.`);
+          setError(`Insufficient LEUS balance. You need <span className="leus">ᛃ</span>${selectedTier.priceLeus} but have <span className="leus">ᛃ</span>${Number(profile.leus_balance).toFixed(2)}.`);
           setUpgrading(null);
           return;
         }
@@ -233,7 +233,7 @@ export function Subscriptions() {
           </div>
           <div className="flex-1 bg-gray-50 rounded-lg p-2 text-center">
             <p className="text-xs text-gray-500">LEUS Balance</p>
-            <p className="text-sm font-semibold text-[#10B981]">Ł{Number(profile?.leus_balance || 0).toFixed(2)}</p>
+            <p className="text-sm font-semibold text-[#10B981]"><span className="leus">ᛃ</span>{Number(profile?.leus_balance || 0).toFixed(2)}</p>
           </div>
         </div>
       </div>
@@ -273,7 +273,7 @@ export function Subscriptions() {
                         )}
                       </div>
                       {tier.priceLeus > 0 && (
-                        <p className="text-xs text-[#10B981]">or Ł{tier.priceLeus}/month</p>
+                        <p className="text-xs text-[#10B981]">or <span className="leus">ᛃ</span>{tier.priceLeus}/month</p>
                       )}
                     </div>
                   </div>
@@ -338,7 +338,7 @@ export function Subscriptions() {
                     <p className="text-sm font-semibold text-[#1E3A8A]">
                       {payment.payment_method === "fiat"
                         ? `£${(payment.amount_pence / 100).toFixed(2)}`
-                        : `Ł${Number(payment.amount_leus).toFixed(2)}`}
+                        : `<span className="leus">ᛃ</span>${Number(payment.amount_leus).toFixed(2)}`}
                     </p>
                     <p className="text-xs text-gray-400 capitalize">{payment.payment_method}</p>
                   </div>
@@ -372,7 +372,7 @@ export function Subscriptions() {
                 <button onClick={() => setPaymentMethod("leus")}
                   className={`py-3 rounded-xl text-sm transition-colors relative ${paymentMethod === "leus" ? "bg-[#10B981] text-white" : "bg-gray-50 text-gray-700 border border-gray-200"}`}>
                   Pay with LEUS
-                  <p className="text-xs opacity-80 mt-0.5">Ł{selectedTier.priceLeus}/mo</p>
+                  <p className="text-xs opacity-80 mt-0.5"><span className="leus">ᛃ</span>{selectedTier.priceLeus}/mo</p>
                 </button>
               </div>
             </div>
@@ -382,7 +382,7 @@ export function Subscriptions() {
               <div className="flex justify-between text-sm">
                 <span className="text-gray-600">{selectedTier.label} Plan</span>
                 <span className="text-gray-800">
-                  {paymentMethod === "fiat" ? `£${(selectedTier.pricePence / 100).toFixed(2)}` : `Ł${selectedTier.priceLeus}`}
+                  {paymentMethod === "fiat" ? `£${(selectedTier.pricePence / 100).toFixed(2)}` : `<span className="leus">ᛃ</span>${selectedTier.priceLeus}`}
                 </span>
               </div>
               <div className="flex justify-between text-sm">
@@ -390,14 +390,14 @@ export function Subscriptions() {
                 <span className="text-gray-800">
                   {paymentMethod === "fiat"
                     ? `£${((profile?.fiat_balance_pence || 0) / 100).toFixed(2)}`
-                    : `Ł${Number(profile?.leus_balance || 0).toFixed(2)}`}
+                    : `<span className="leus">ᛃ</span>${Number(profile?.leus_balance || 0).toFixed(2)}`}
                 </span>
               </div>
               <div className="h-px bg-gray-200" />
               <div className="flex justify-between text-sm font-semibold">
                 <span className="text-gray-800">Billed today</span>
                 <span className="text-[#1E3A8A]">
-                  {paymentMethod === "fiat" ? `£${(selectedTier.pricePence / 100).toFixed(2)}` : `Ł${selectedTier.priceLeus}`}
+                  {paymentMethod === "fiat" ? `£${(selectedTier.pricePence / 100).toFixed(2)}` : `<span className="leus">ᛃ</span>${selectedTier.priceLeus}`}
                 </span>
               </div>
             </div>
@@ -414,3 +414,5 @@ export function Subscriptions() {
     </div>
   );
 }
+
+

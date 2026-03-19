@@ -1,567 +1,532 @@
-import { useState, useEffect, useRef } from "react";
-import { useNavigate } from "react-router";
+import { useState, useEffect } from "react";
+import { useNavigate, useParams } from "react-router";
 import {
-  Plus, Edit2, Trash2, Eye, EyeOff, Loader2,
-  Camera, X, ChevronDown, DollarSign, CheckCircle,
-  BarChart2, TrendingUp, Users, Package, MapPin, Navigation,
+  ArrowLeft, Star, MapPin, Clock, Shield, CheckCircle,
+  Calendar, MessageCircle, Loader2, AlertCircle,
 } from "lucide-react";
 import { supabase } from "../../lib/supabase";
-import {
-  AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
-  ResponsiveContainer, BarChart, Bar,
-} from "recharts";
 
-const CATEGORIES = [
-  "Cleaning","Plumbing","Car Wash","Hair & Beauty","Painting",
-  "Photography","IT Services","Healthcare","Tutoring / Education",
-  "Legal Services","Accounting / Finance","Moving / Removals",
-  "Pest Control","Electrical","Gardening / Landscaping",
-  "Personal Training","Catering / Events","Pet Care / Grooming",
-  "Security Services","Laundry / Ironing","Repairs","Other",
-];
-
-type Tab = "listings" | "analytics" | "add";
-
-export function ProviderServices() {
+export function ServiceDetail() {
   const navigate = useNavigate();
-  const [profile, setProfile]               = useState<any>(null);
-  const [listings, setListings]             = useState<any[]>([]);
-  const [loading, setLoading]               = useState(true);
-  const [saving, setSaving]                 = useState(false);
-  const [activeTab, setActiveTab]           = useState<Tab>("listings");
-  const [error, setError]                   = useState("");
-  const [success, setSuccess]               = useState("");
-  const [editingId, setEditingId]           = useState<string | null>(null);
-  const [analytics, setAnalytics]           = useState<any>(null);
-  const [detectingLocation, setDetectingLocation] = useState(false);
-  const fileInputRef                        = useRef<HTMLInputElement>(null);
+  const { id }   = useParams();
 
-  const [form, setForm] = useState({
-    title: "", description: "", category: "",
-    price_pence: "", price_type: "fixed",
+  const [selectedDate, setSelectedDate]   = useState("");
+  const [selectedTime, setSelectedTime]   = useState("");
+  const [paymentMethod, setPaymentMethod] = useState<"fiat" | "leus">("fiat");
+  const [loading, setLoading]             = useState(true);
+  const [booking, setBooking]             = useState(false);
+  const [contacting, setContacting]       = useState(false);
+  const [error, setError]                 = useState("");
+  const [service, setService]             = useState<any>(null);
+  const [currentUser, setCurrentUser]     = useState<any>(null);
+
+  const timeSlots = ["9:00 AM","10:00 AM","11:00 AM","1:00 PM","2:00 PM","3:00 PM","4:00 PM"];
+
+  const mockService = {
+    id: id || "1",
+    title: "Professional Cleaning",
+    provider_id: null,
+    provider_name: "CleanPro Services",
+    avg_rating: 4.9,
+    total_reviews: 156,
+    price_pence: 5000,
+    price_leus: null,
+    price_type: "hourly",
     booking_type: "fixed",
-    accepts_leus: true, status: "active",
-    location_city: "", is_remote: false,
-    lat: "", lng: "",
-  });
-  const [images, setImages]               = useState<File[]>([]);
-  const [imagePreviews, setImagePreviews] = useState<string[]>([]);
+    location_city: "London",
+    accepts_leus: true,
+    accepts_fiat: true,
+    is_remote: false,
+    description: "Expert cleaning services for homes and offices.",
+    primary_image: "https://images.unsplash.com/photo-1581578731548-c64695cc6952?w=800&h=400&fit=crop",
+    availability: "Mon-Sat, 8:00 AM - 6:00 PM",
+    features: [
+      "Background-checked professionals",
+      "Eco-friendly cleaning products",
+      "100% satisfaction guarantee",
+      "Flexible scheduling",
+      "Insurance covered",
+    ],
+  };
 
-  useEffect(() => { fetchData(); }, []);
+  useEffect(() => { fetchService(); fetchCurrentUser(); }, [id]);
 
-  const fetchData = async () => {
+  const fetchCurrentUser = async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (user) {
+      const { data: profile } = await supabase
+        .from("profiles").select("*").eq("id", user.id).single();
+      setCurrentUser(profile);
+    }
+  };
+
+  const fetchService = async () => {
     setLoading(true);
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) { navigate("/login"); return; }
-      const { data: profileData } = await supabase.from("profiles").select("*").eq("id", user.id).single();
-      setProfile(profileData);
-      const { data: listingsData } = await supabase
-        .from("listings").select("*, listing_images(url, is_primary)")
-        .eq("provider_id", user.id).order("created_at", { ascending: false });
-      setListings(listingsData || []);
-      await fetchAnalytics(user.id, listingsData || []);
-    } catch (err) { console.error(err); }
-    finally { setLoading(false); }
-  };
-
-  const fetchAnalytics = async (userId: string, currentListings: any[]) => {
-    try {
-      const sevenDaysAgo = new Date();
-      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-      const { data: bookings } = await supabase.from("bookings")
-        .select("id, amount_pence, amount_leus, payment_method, status, created_at")
-        .eq("provider_id", userId).gte("created_at", sevenDaysAgo.toISOString());
-
-      const days = Array.from({ length: 7 }, (_, i) => {
-        const d = new Date(); d.setDate(d.getDate() - (6 - i));
-        return { day: d.toLocaleDateString("en-GB", { weekday: "short" }), date: d.toISOString().split("T")[0], earnings: 0, bookings: 0 };
-      });
-      bookings?.forEach(b => {
-        const day = days.find(d => d.date === b.created_at.split("T")[0]);
-        if (day && b.status === "completed") {
-          day.earnings += b.payment_method === "fiat" ? (b.amount_pence || 0) / 100 : Number(b.amount_leus || 0);
-          day.bookings += 1;
-        }
-      });
-
-      const { data: allBookings } = await supabase.from("bookings")
-        .select("id, amount_pence, amount_leus, payment_method, status").eq("provider_id", userId);
-      const completed   = allBookings?.filter(b => b.status === "completed") || [];
-      const totalEarned = completed.reduce((sum, b) =>
-        sum + (b.payment_method === "fiat" ? (b.amount_pence || 0) / 100 : Number(b.amount_leus || 0)), 0);
-
-      setAnalytics({
-        chartData: days,
-        totalBookings: allBookings?.length || 0,
-        completedBookings: completed.length,
-        totalEarned,
-        activeListings: currentListings.filter(l => l.status === "active").length,
-      });
-    } catch (err) { console.error(err); }
-  };
-
-  const resetForm = () => {
-    setForm({ title: "", description: "", category: "", price_pence: "", price_type: "fixed", booking_type: "fixed", accepts_leus: true, status: "active", location_city: "", is_remote: false, lat: "", lng: "" });
-    setImages([]); setImagePreviews([]); setEditingId(null); setError("");
-  };
-
-  const detectLocation = () => {
-    if (!navigator.geolocation) { setError("Geolocation not supported."); return; }
-    setDetectingLocation(true);
-    navigator.geolocation.getCurrentPosition(
-      ({ coords }) => {
-        setForm(f => ({ ...f, lat: coords.latitude.toFixed(6), lng: coords.longitude.toFixed(6) }));
-        setDetectingLocation(false);
-      },
-      () => { setError("Could not detect location."); setDetectingLocation(false); },
-      { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
-    );
-  };
-
-  const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(e.target.files || []);
-    if (files.length + images.length > 5) { setError("Maximum 5 images allowed."); return; }
-    setImages(prev => [...prev, ...files]);
-    setImagePreviews(prev => [...prev, ...files.map(f => URL.createObjectURL(f))]);
-  };
-
-  const removeImage = (index: number) => {
-    setImages(prev => prev.filter((_, i) => i !== index));
-    setImagePreviews(prev => prev.filter((_, i) => i !== index));
-  };
-
-  const handleSave = async () => {
-    if (!form.title || !form.category || !form.price_pence) { setError("Please fill in all required fields."); return; }
-    setSaving(true); setError(""); setSuccess("");
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-
-      const listingData: any = {
-        provider_id:   user.id,
-        title:         form.title,
-        description:   form.description,
-        category:      form.category,
-        price_pence:   Math.round(parseFloat(form.price_pence) * 100),
-        price_type:    form.price_type,
-        booking_type:  form.booking_type,
-        accepts_leus:  form.accepts_leus,
-        status:        form.status,
-        location_city: form.location_city || null,
-        is_remote:     form.is_remote,
-        lat:           form.lat ? parseFloat(form.lat) : null,
-        lng:           form.lng ? parseFloat(form.lng) : null,
-      };
-
-      let listingId = editingId;
-      if (editingId) {
-        const { error: updateErr } = await supabase.from("listings").update(listingData).eq("id", editingId);
-        if (updateErr) throw updateErr;
-      } else {
-        const { data, error: insertErr } = await supabase.from("listings").insert(listingData).select("id").single();
-        if (insertErr) throw insertErr;
-        listingId = data.id;
+      // Mock IDs — use mock data
+      if (!id || ["1","2","3","4"].includes(id)) {
+        setService(mockService);
+        setLoading(false);
+        return;
       }
 
-      for (let i = 0; i < images.length; i++) {
-        const file = images[i];
-        const ext  = file.name.split(".").pop() || "jpg";
-        const path = `listings/${listingId}/${Date.now()}_${i}.${ext}`;
-        const { error: uploadErr } = await supabase.storage.from("listing-images").upload(path, file, { upsert: true });
-        if (uploadErr) { console.error("Image upload error:", uploadErr.message); continue; }
-        const { data: urlData } = supabase.storage.from("listing-images").getPublicUrl(path);
-        await supabase.from("listing_images").insert({ listing_id: listingId, url: urlData.publicUrl, is_primary: i === 0 && !editingId });
+      const { data, error: fetchError } = await supabase
+        .from("listings")
+        .select(`
+          id, title, description, category, booking_type,
+          price_pence, price_leus, price_type,
+          accepts_fiat, accepts_leus, is_remote,
+          location_city, lat, lng, status,
+          provider_id,
+          profiles!provider_id (
+            id, full_name, avg_rating, total_reviews, bio, avatar_url
+          ),
+          listing_images (url, is_primary, alt_text)
+        `)
+        .eq("id", id)
+        .single();
+
+      if (fetchError || !data) {
+        console.error("fetchService error:", fetchError?.message);
+        setService(mockService);
+        return;
       }
 
-      setSuccess(editingId ? "Listing updated!" : "Listing created successfully!");
-      resetForm(); setActiveTab("listings"); fetchData();
+      // ── Map response explicitly so booking_type is never lost ──
+      const bookingType = data.booking_type || "fixed";
+
+      setService({
+        id:            data.id,
+        title:         data.title,
+        description:   data.description || "",
+        category:      data.category,
+        booking_type:  bookingType,
+        price_pence:   data.price_pence,
+        price_leus:    data.price_leus,
+        price_type:    data.price_type,
+        accepts_fiat:  data.accepts_fiat,
+        accepts_leus:  data.accepts_leus,
+        is_remote:     data.is_remote,
+        location_city: data.location_city,
+        provider_id:   data.profiles?.id || null,
+        provider_name: data.profiles?.full_name || "Unknown Provider",
+        provider_avatar: data.profiles?.avatar_url || null,
+        avg_rating:    data.profiles?.avg_rating || 0,
+        total_reviews: data.profiles?.total_reviews || 0,
+        primary_image: data.listing_images?.find((img: any) => img.is_primary)?.url
+          || data.listing_images?.[0]?.url
+          || "https://images.unsplash.com/photo-1581578731548-c64695cc6952?w=800&h=400&fit=crop",
+        availability: "Contact provider for availability",
+        features: [
+          "Background-checked professionals",
+          "Satisfaction guarantee",
+          "Secure escrow payment",
+          "Flexible scheduling",
+        ],
+      });
     } catch (err: any) {
-      setError(err.message || "Failed to save listing.");
-    } finally { setSaving(false); }
+      console.error("fetchService exception:", err.message);
+      setService(mockService);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleEdit = (listing: any) => {
-    setForm({
-      title:         listing.title,
-      description:   listing.description || "",
-      category:      listing.category || "",
-      price_pence:   String((listing.price_pence || 0) / 100),
-      price_type:    listing.price_type || "fixed",
-      booking_type:  listing.booking_type || "fixed",
-      accepts_leus:  listing.accepts_leus,
-      status:        listing.status,
-      location_city: listing.location_city || "",
-      is_remote:     listing.is_remote || false,
-      lat:           listing.lat ? String(listing.lat) : "",
-      lng:           listing.lng ? String(listing.lng) : "",
-    });
-    setEditingId(listing.id); setImages([]); setImagePreviews([]); setActiveTab("add");
+  // ── Contact Provider ───────────────────────────────────────────
+  const handleContactProvider = async () => {
+    if (!currentUser) { navigate("/login"); return; }
+    if (!service.provider_id) return;
+    setContacting(true);
+    try {
+      const { data: existing } = await supabase
+        .from("conversations").select("id")
+        .eq("client_id", currentUser.id)
+        .eq("provider_id", service.provider_id)
+        .maybeSingle();
+
+      if (existing) { navigate(`/home/conversation/${existing.id}`); return; }
+
+      const { data: newConv, error: convError } = await supabase
+        .from("conversations")
+        .insert({
+          client_id:       currentUser.id,
+          provider_id:     service.provider_id,
+          last_message_at: new Date().toISOString(),
+        })
+        .select("id").single();
+
+      if (convError) throw convError;
+      navigate(`/home/conversation/${newConv.id}`);
+    } catch (err: any) {
+      setError(err.message || "Could not start conversation.");
+    } finally {
+      setContacting(false);
+    }
   };
 
-  const handleToggleStatus = async (listing: any) => {
-    await supabase.from("listings").update({ status: listing.status === "active" ? "inactive" : "active" }).eq("id", listing.id);
-    fetchData();
+  // ── Book Now (fixed listings only) ────────────────────────────
+  const handleBooking = async () => {
+    if (!selectedDate || !selectedTime) {
+      setError("Please select a date and time.");
+      return;
+    }
+    if (!currentUser) { navigate("/login"); return; }
+    setBooking(true); setError("");
+
+    try {
+      const totalPence   = service.price_pence || 0;
+      const depositPence = Math.round(totalPence * 0.5);
+      const totalLeus    = service.price_leus || 0;
+      const depositLeus  = totalLeus * 0.5;
+
+      // Check balance
+      if (paymentMethod === "fiat") {
+        if ((currentUser.fiat_balance_pence || 0) < depositPence) {
+          setError(`Insufficient balance. You need £${(depositPence / 100).toFixed(2)} for the 50% deposit but have £${((currentUser.fiat_balance_pence || 0) / 100).toFixed(2)}.`);
+          setBooking(false); return;
+        }
+      } else {
+        const leusDeposit = depositLeus * 0.95;
+        if ((currentUser.leus_balance || 0) < leusDeposit) {
+          setError(`Insufficient LEUS balance. You need <span className="leus">ᛃ</span>${leusDeposit.toFixed(2)} for the 50% deposit.`);
+          setBooking(false); return;
+        }
+      }
+
+      // Deduct deposit from wallet
+      if (paymentMethod === "fiat") {
+        await supabase.from("profiles")
+          .update({ fiat_balance_pence: (currentUser.fiat_balance_pence || 0) - depositPence })
+          .eq("id", currentUser.id);
+      } else {
+        const leusDeposit = depositLeus * 0.95;
+        await supabase.from("profiles")
+          .update({ leus_balance: (currentUser.leus_balance || 0) - leusDeposit })
+          .eq("id", currentUser.id);
+      }
+
+      // Create booking
+      const scheduledAt      = new Date(`${selectedDate} ${selectedTime}`).toISOString();
+      const platformFeePence = paymentMethod === "fiat" ? Math.round(totalPence * 0.02) : 0;
+
+      const { error: bookingError } = await supabase.from("bookings").insert({
+        listing_id:         service.id,
+        client_id:          currentUser.id,
+        provider_id:        service.provider_id,
+        title:              service.title,
+        description:        `Booking for ${service.title} on ${selectedDate} at ${selectedTime}`,
+        scheduled_at:       scheduledAt,
+        status:             "pending",
+        payment_method:     paymentMethod,
+        amount_pence:       paymentMethod === "fiat" ? totalPence : null,
+        amount_leus:        paymentMethod === "leus" ? totalLeus * 0.95 : null,
+        deposit_pence:      paymentMethod === "fiat" ? depositPence : 0,
+        deposit_leus:       paymentMethod === "leus" ? depositLeus * 0.95 : 0,
+        deposit_held:       true,
+        platform_fee_pence: platformFeePence,
+      });
+
+      if (bookingError) throw bookingError;
+
+      // Log wallet transaction
+      await supabase.from("wallet_transactions").insert({
+        user_id:          currentUser.id,
+        type:             "booking_deposit",
+        fiat_delta_pence: paymentMethod === "fiat" ? -depositPence : 0,
+        leus_delta:       paymentMethod === "leus" ? -(depositLeus * 0.95) : 0,
+        reference:        `50% deposit for ${service.title}`,
+      });
+
+      alert(`Booking submitted! ✅ A 50% deposit of ${paymentMethod === "fiat" ? `£${(depositPence / 100).toFixed(2)}` : `<span className="leus">ᛃ</span>${(depositLeus * 0.95).toFixed(2)}`} has been held. The provider will confirm shortly.`);
+      navigate("/home/bookings");
+    } catch (err: any) {
+      setError(err.message || "Failed to create booking. Please try again.");
+    } finally {
+      setBooking(false);
+    }
   };
 
-  const handleDelete = async (id: string) => {
-    if (!window.confirm("Delete this listing?")) return;
-    await supabase.from("listings").delete().eq("id", id);
-    fetchData();
-  };
+  if (loading) return (
+    <div className="min-h-screen flex items-center justify-center">
+      <Loader2 className="w-8 h-8 animate-spin text-[#1E3A8A]" />
+    </div>
+  );
+  if (!service) return null;
 
-  if (loading) return <div className="min-h-screen flex items-center justify-center"><Loader2 className="w-8 h-8 animate-spin text-[#1E3A8A]" /></div>;
+  // ── Derived values ─────────────────────────────────────────────
+  const isNegotiable = service.booking_type === "negotiable";
+  const totalPrice   = paymentMethod === "leus"
+    ? (service.price_pence / 100) * 0.95
+    : (service.price_pence || 0) / 100;
+  const depositPrice = totalPrice * 0.5;
+  const discount     = paymentMethod === "leus" ? (service.price_pence / 100) * 0.05 : 0;
 
   return (
-    <div className="min-h-screen">
-      {/* Header */}
-      <div className="bg-[#1E3A8A]/80 backdrop-blur-lg px-4 pt-6 pb-4 rounded-b-3xl">
-        <div className="flex items-center justify-between mb-4">
-          <div>
-            <h1 className="text-xl font-bold text-white" style={{ fontFamily: "Syne, sans-serif" }}>My Services</h1>
-            <p className="text-white/70 text-sm">{listings.length} listing{listings.length !== 1 ? "s" : ""}</p>
+    <div className="min-h-screen pb-28">
+
+      {/* Header Image */}
+      <div className="relative">
+        <img
+          src={service.primary_image}
+          alt={service.title}
+          className="w-full h-64 object-cover"
+        />
+        <button
+          onClick={() => navigate(-1)}
+          className="absolute top-4 left-4 w-10 h-10 bg-white rounded-full flex items-center justify-center shadow-lg"
+        >
+          <ArrowLeft className="w-5 h-5 text-gray-800" />
+        </button>
+        <div className="absolute top-4 right-4 flex flex-col gap-2 items-end">
+          {service.accepts_leus && (
+            <div className="bg-[#10B981] text-white px-3 py-1.5 rounded-full text-sm">LEUS Accepted</div>
+          )}
+          <div className={`px-3 py-1.5 rounded-full text-xs font-medium ${
+            isNegotiable ? "bg-orange-500 text-white" : "bg-[#1E3A8A] text-white"
+          }`}>
+            {isNegotiable ? "Negotiable" : "Fixed Price"}
           </div>
-          <button onClick={() => { resetForm(); setActiveTab("add"); }}
-            className="bg-[#10B981] text-white px-4 py-2 rounded-xl text-sm flex items-center gap-2 hover:bg-[#0d9668] transition-colors">
-            <Plus className="w-4 h-4" />Add Listing
+        </div>
+      </div>
+
+      {/* Service Info */}
+      <div className="px-4 py-4 bg-white/80 backdrop-blur-md border border-white/30">
+        <h1 className="text-2xl text-gray-800 mb-2">{service.title}</h1>
+        <p className="text-base text-gray-600 mb-3">{service.provider_name}</p>
+        <div className="flex items-center gap-4 mb-4">
+          <div className="flex items-center gap-1">
+            <Star className="w-5 h-5 fill-yellow-400 text-yellow-400" />
+            <span className="text-sm text-gray-800">
+              {service.avg_rating > 0 ? service.avg_rating.toFixed(1) : "New"}
+            </span>
+            {service.total_reviews > 0 && (
+              <span className="text-sm text-gray-500">({service.total_reviews} reviews)</span>
+            )}
+          </div>
+          <div className="flex items-center gap-1 text-sm text-gray-600">
+            <MapPin className="w-4 h-4" />
+            {service.is_remote ? "Remote" : service.location_city || "UK"}
+          </div>
+        </div>
+        <div className="flex items-center gap-2 text-sm text-gray-600">
+          <Clock className="w-4 h-4" />
+          <span>{service.availability}</span>
+        </div>
+      </div>
+
+      {/* Description */}
+      <div className="mt-2 px-4 py-4 bg-white/80 backdrop-blur-md border border-white/30">
+        <h3 className="text-base text-gray-800 mb-2">About this service</h3>
+        <p className="text-sm text-gray-600 leading-relaxed">{service.description}</p>
+      </div>
+
+      {/* Features */}
+      <div className="mt-2 px-4 py-4 bg-white/80 backdrop-blur-md border border-white/30">
+        <h3 className="text-base text-gray-800 mb-3">What's included</h3>
+        <div className="space-y-2">
+          {service.features.map((feature: string, index: number) => (
+            <div key={index} className="flex items-start gap-2">
+              <CheckCircle className="w-5 h-5 text-[#10B981] flex-shrink-0 mt-0.5" />
+              <span className="text-sm text-gray-600">{feature}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* ── NEGOTIABLE: contact only ── */}
+      {isNegotiable && (
+        <div className="mt-2 px-4 py-4 bg-white/80 backdrop-blur-md border border-white/30">
+          <div className="bg-orange-50 border border-orange-200 rounded-xl p-4 mb-4">
+            <h3 className="text-sm font-semibold text-orange-800 mb-1">Negotiable Pricing</h3>
+            <p className="text-xs text-orange-700 leading-relaxed">
+              This provider discusses requirements before confirming a booking. Contact them to agree on price, date, and details. Once agreed, they'll send you a booking offer in chat.
+            </p>
+          </div>
+          {error && (
+            <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-xl text-red-600 text-sm">{error}</div>
+          )}
+          <button
+            onClick={handleContactProvider}
+            disabled={contacting || !service.provider_id}
+            className="w-full bg-[#1E3A8A] text-white py-3.5 rounded-xl hover:bg-[#152d6b] transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
+          >
+            {contacting
+              ? <><Loader2 className="w-5 h-5 animate-spin" />Starting chat...</>
+              : <><MessageCircle className="w-5 h-5" />Contact Provider to Book</>
+            }
           </button>
         </div>
-        <div className="grid grid-cols-3 gap-2">
-          {[
-            { label: "Active",  value: listings.filter(l => l.status === "active").length },
-            { label: "Rating",  value: Number(profile?.avg_rating || 0).toFixed(1) },
-            { label: "Reviews", value: profile?.total_reviews || 0 },
-          ].map((s, i) => (
-            <div key={i} className="bg-white/20 rounded-xl p-2 text-center">
-              <p className="text-white font-bold">{s.value}</p>
-              <p className="text-white/70 text-xs">{s.label}</p>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Tabs */}
-      <div className="px-4 mt-4">
-        <div className="flex bg-white/80 backdrop-blur-md rounded-xl p-1 border border-white/30">
-          {([
-            { key: "listings",  label: "My Listings", Icon: Package },
-            { key: "analytics", label: "Analytics",   Icon: BarChart2 },
-            { key: "add",       label: editingId ? "Edit" : "Add New", Icon: Plus },
-          ] as { key: Tab; label: string; Icon: any }[]).map(({ key, label, Icon }) => (
-            <button key={key}
-              onClick={() => { if (key !== "add") setActiveTab(key); else { resetForm(); setActiveTab("add"); } }}
-              className={`flex-1 py-2 rounded-lg text-xs font-medium transition-colors flex items-center justify-center gap-1 ${activeTab === key ? "bg-[#1E3A8A] text-white" : "text-gray-600"}`}>
-              <Icon className="w-3.5 h-3.5" />{label}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {success && <div className="mx-4 mt-3 p-3 bg-green-50 border border-green-200 rounded-xl text-green-700 text-sm">{success}</div>}
-
-      {/* ── LISTINGS TAB ── */}
-      {activeTab === "listings" && (
-        <div className="px-4 mt-4 pb-6 space-y-3">
-          {listings.length === 0 ? (
-            <div className="bg-white/80 backdrop-blur-md rounded-xl p-10 text-center border border-white/30">
-              <Package className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-              <p className="text-gray-500 mb-4">No listings yet</p>
-              <button onClick={() => setActiveTab("add")} className="bg-[#10B981] text-white px-6 py-2.5 rounded-xl text-sm hover:bg-[#0d9668] transition-colors">
-                Create Your First Listing
-              </button>
-            </div>
-          ) : listings.map(listing => {
-            const primaryImg = listing.listing_images?.find((i: any) => i.is_primary)?.url || listing.listing_images?.[0]?.url;
-            return (
-              <div key={listing.id} className="bg-white/80 backdrop-blur-md rounded-xl shadow-sm border border-white/30 overflow-hidden">
-                <div className="flex gap-3">
-                  {primaryImg
-                    ? <img src={primaryImg} alt={listing.title} className="w-24 h-24 object-cover flex-shrink-0" onError={e => { (e.target as HTMLImageElement).style.display = "none"; }} />
-                    : <div className="w-24 h-24 bg-gray-100 flex items-center justify-center flex-shrink-0"><Camera className="w-8 h-8 text-gray-300" /></div>
-                  }
-                  <div className="flex-1 p-3">
-                    <div className="flex items-start justify-between mb-1">
-                      <h3 className="text-sm font-semibold text-gray-800 flex-1">{listing.title}</h3>
-                      <span className={`text-xs px-2 py-0.5 rounded-full ml-2 ${listing.status === "active" ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-500"}`}>{listing.status}</span>
-                    </div>
-                    <div className="flex items-center gap-2 mb-1 flex-wrap">
-                      <p className="text-xs text-gray-500">{listing.category}</p>
-                      <span className={`text-xs px-1.5 py-0.5 rounded-full ${listing.booking_type === "negotiable" ? "bg-orange-100 text-orange-700" : "bg-blue-100 text-blue-700"}`}>
-                        {listing.booking_type === "negotiable" ? "Negotiable" : "Fixed"}
-                      </span>
-                      {listing.location_city && (
-                        <span className="flex items-center gap-0.5 text-xs text-gray-400">
-                          <MapPin className="w-3 h-3" />{listing.location_city}
-                        </span>
-                      )}
-                      {listing.is_remote && <span className="text-xs bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded-full">Remote</span>}
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm font-semibold text-[#1E3A8A]">£{((listing.price_pence || 0) / 100).toFixed(2)}{listing.price_type === "hourly" ? "/hr" : ""}</span>
-                      {listing.accepts_leus && <span className="text-xs bg-[#10B981] text-white px-2 py-0.5 rounded-full">LEUS</span>}
-                    </div>
-                  </div>
-                </div>
-                <div className="flex border-t border-gray-100">
-                  <button onClick={() => handleEdit(listing)} className="flex-1 py-2.5 flex items-center justify-center gap-1 text-xs text-[#1E3A8A] hover:bg-blue-50 transition-colors">
-                    <Edit2 className="w-3.5 h-3.5" />Edit
-                  </button>
-                  <button onClick={() => handleToggleStatus(listing)} className="flex-1 py-2.5 flex items-center justify-center gap-1 text-xs text-gray-600 hover:bg-gray-50 transition-colors border-x border-gray-100">
-                    {listing.status === "active" ? <><EyeOff className="w-3.5 h-3.5" />Hide</> : <><Eye className="w-3.5 h-3.5" />Show</>}
-                  </button>
-                  <button onClick={() => handleDelete(listing.id)} className="flex-1 py-2.5 flex items-center justify-center gap-1 text-xs text-red-500 hover:bg-red-50 transition-colors">
-                    <Trash2 className="w-3.5 h-3.5" />Delete
-                  </button>
-                </div>
-              </div>
-            );
-          })}
-        </div>
       )}
 
-      {/* ── ANALYTICS TAB ── */}
-      {activeTab === "analytics" && (
-        <div className="px-4 mt-4 pb-6 space-y-4">
-          <div className="grid grid-cols-2 gap-3">
-            {[
-              { label: "Total Bookings",  value: analytics?.totalBookings || 0,                  Icon: Users,       color: "text-blue-600",   bg: "bg-blue-50" },
-              { label: "Completed",       value: analytics?.completedBookings || 0,              Icon: CheckCircle, color: "text-green-600",  bg: "bg-green-50" },
-              { label: "Total Earned",    value: `£${(analytics?.totalEarned || 0).toFixed(2)}`, Icon: DollarSign,  color: "text-purple-600", bg: "bg-purple-50" },
-              { label: "Active Listings", value: analytics?.activeListings || 0,                 Icon: Package,     color: "text-orange-600", bg: "bg-orange-50" },
-            ].map(({ label, value, Icon, color, bg }, i) => (
-              <div key={i} className="bg-white/80 backdrop-blur-md rounded-xl p-4 shadow-sm border border-white/30">
-                <div className={`w-9 h-9 ${bg} rounded-lg flex items-center justify-center mb-2`}><Icon className={`w-5 h-5 ${color}`} /></div>
-                <p className="text-lg font-bold text-gray-800">{value}</p>
-                <p className="text-xs text-gray-500">{label}</p>
-              </div>
-            ))}
-          </div>
+      {/* ── FIXED: full booking form ── */}
+      {!isNegotiable && (
+        <>
+          <div className="mt-2 px-4 py-4 bg-white/80 backdrop-blur-md border border-white/30">
+            <h3 className="text-base text-gray-800 mb-4">Book this service</h3>
 
-          <div className="bg-white/80 backdrop-blur-md rounded-xl p-4 shadow-sm border border-white/30">
-            <h3 className="text-sm font-semibold text-gray-800 mb-4 flex items-center gap-2"><TrendingUp className="w-4 h-4 text-[#10B981]" />Earnings — Last 7 Days</h3>
-            <ResponsiveContainer width="100%" height={160}>
-              <AreaChart data={analytics?.chartData || []}>
-                <defs>
-                  <linearGradient id="earningsGrad" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%"  stopColor="#1E3A8A" stopOpacity={0.3} />
-                    <stop offset="95%" stopColor="#1E3A8A" stopOpacity={0} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                <XAxis dataKey="day" tick={{ fontSize: 11 }} />
-                <YAxis tick={{ fontSize: 11 }} tickFormatter={v => `£${v}`} />
-                <Tooltip formatter={(v: any) => [`£${Number(v).toFixed(2)}`, "Earnings"]} />
-                <Area type="monotone" dataKey="earnings" stroke="#1E3A8A" strokeWidth={2} fill="url(#earningsGrad)" />
-              </AreaChart>
-            </ResponsiveContainer>
-          </div>
+            {error && (
+              <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-xl text-red-600 text-sm">{error}</div>
+            )}
 
-          <div className="bg-white/80 backdrop-blur-md rounded-xl p-4 shadow-sm border border-white/30">
-            <h3 className="text-sm font-semibold text-gray-800 mb-4 flex items-center gap-2"><BarChart2 className="w-4 h-4 text-[#10B981]" />Bookings — Last 7 Days</h3>
-            <ResponsiveContainer width="100%" height={140}>
-              <BarChart data={analytics?.chartData || []}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                <XAxis dataKey="day" tick={{ fontSize: 11 }} />
-                <YAxis tick={{ fontSize: 11 }} allowDecimals={false} />
-                <Tooltip formatter={(v: any) => [v, "Bookings"]} />
-                <Bar dataKey="bookings" fill="#10B981" radius={[4, 4, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-
-          <div className="bg-white/80 backdrop-blur-md rounded-xl p-4 shadow-sm border border-white/30">
-            <h3 className="text-sm font-semibold text-gray-800 mb-3">Completion Rate</h3>
-            <div className="flex items-center gap-4">
-              <div className="flex-1">
-                <div className="h-3 bg-gray-200 rounded-full overflow-hidden">
-                  <div className="h-full bg-gradient-to-r from-[#1E3A8A] to-[#10B981] rounded-full transition-all"
-                    style={{ width: `${analytics?.totalBookings > 0 ? Math.round((analytics.completedBookings / analytics.totalBookings) * 100) : 0}%` }} />
-                </div>
-              </div>
-              <span className="text-lg font-bold text-[#1E3A8A]">
-                {analytics?.totalBookings > 0 ? Math.round((analytics.completedBookings / analytics.totalBookings) * 100) : 0}%
-              </span>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ── ADD / EDIT TAB ── */}
-      {activeTab === "add" && (
-        <div className="px-4 mt-4 pb-6">
-          <div className="bg-white/80 backdrop-blur-md rounded-xl p-5 shadow-sm border border-white/30 space-y-4">
-            <h2 className="text-lg font-semibold text-gray-800">{editingId ? "Edit Listing" : "New Listing"}</h2>
-            {error && <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-red-600 text-sm">{error}</div>}
-
-            <div>
-              <label className="block text-sm text-gray-700 mb-1">Title *</label>
-              <input value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))}
-                placeholder="e.g. Professional House Cleaning"
-                className="w-full px-4 py-3 bg-gray-50 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#10B981] text-sm" />
-            </div>
-
-            <div>
-              <label className="block text-sm text-gray-700 mb-1">Category *</label>
+            {/* Date */}
+            <div className="mb-4">
+              <label className="block text-sm text-gray-700 mb-2">Select Date</label>
               <div className="relative">
-                <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
-                <select value={form.category} onChange={e => setForm(f => ({ ...f, category: e.target.value }))}
-                  className="w-full px-4 py-3 bg-gray-50 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#10B981] text-sm appearance-none">
-                  <option value="">Select category</option>
-                  {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
-                </select>
+                <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                <input
+                  type="date"
+                  value={selectedDate}
+                  onChange={e => setSelectedDate(e.target.value)}
+                  min={new Date().toISOString().split("T")[0]}
+                  className="w-full pl-10 pr-4 py-3 bg-gray-50 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#10B981]"
+                />
               </div>
             </div>
 
-            <div>
-              <label className="block text-sm text-gray-700 mb-1">Description</label>
-              <textarea value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
-                placeholder="Describe your service..." rows={3}
-                className="w-full px-4 py-3 bg-gray-50 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#10B981] text-sm resize-none" />
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="block text-sm text-gray-700 mb-1">Price (£) *</label>
-                <div className="relative">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 text-sm">£</span>
-                  <input type="number" value={form.price_pence} onChange={e => setForm(f => ({ ...f, price_pence: e.target.value }))}
-                    placeholder="0.00" min="0" step="0.01"
-                    className="w-full pl-8 pr-4 py-3 bg-gray-50 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#10B981] text-sm" />
-                </div>
-              </div>
-              <div>
-                <label className="block text-sm text-gray-700 mb-1">Price Type</label>
-                <div className="relative">
-                  <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
-                  <select value={form.price_type} onChange={e => setForm(f => ({ ...f, price_type: e.target.value }))}
-                    className="w-full px-4 py-3 bg-gray-50 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#10B981] text-sm appearance-none">
-                    <option value="fixed">Fixed</option>
-                    <option value="hourly">Per Hour</option>
-                    <option value="quote">Quote</option>
-                  </select>
-                </div>
-              </div>
-            </div>
-
-            {/* Booking Type */}
-            <div>
-              <label className="block text-sm text-gray-700 mb-2">Booking Method</label>
-              <div className="grid grid-cols-2 gap-3">
-                <button type="button" onClick={() => setForm(f => ({ ...f, booking_type: "fixed" }))}
-                  className={`py-3 px-3 rounded-xl text-sm border transition-colors text-left ${form.booking_type === "fixed" ? "bg-[#1E3A8A]/10 border-[#1E3A8A] text-[#1E3A8A]" : "bg-gray-50 border-gray-200 text-gray-500"}`}>
-                  <p className="font-medium">Fixed</p>
-                  <p className="text-xs opacity-70 mt-0.5">Client books directly</p>
-                </button>
-                <button type="button" onClick={() => setForm(f => ({ ...f, booking_type: "negotiable" }))}
-                  className={`py-3 px-3 rounded-xl text-sm border transition-colors text-left ${form.booking_type === "negotiable" ? "bg-orange-50 border-orange-400 text-orange-700" : "bg-gray-50 border-gray-200 text-gray-500"}`}>
-                  <p className="font-medium">Negotiable</p>
-                  <p className="text-xs opacity-70 mt-0.5">Chat first, then offer</p>
-                </button>
-              </div>
-            </div>
-
-            {/* Location */}
-            <div>
-              <label className="block text-sm text-gray-700 mb-2">Location</label>
-              <div className="space-y-3">
-                <div className="flex gap-2">
-                  <button type="button" onClick={() => setForm(f => ({ ...f, is_remote: false }))}
-                    className={`flex-1 py-2.5 rounded-xl text-sm border transition-colors ${!form.is_remote ? "bg-[#1E3A8A]/10 border-[#1E3A8A] text-[#1E3A8A]" : "bg-gray-50 border-gray-200 text-gray-500"}`}>
-                    On-site
+            {/* Time */}
+            <div className="mb-4">
+              <label className="block text-sm text-gray-700 mb-2">Select Time</label>
+              <div className="grid grid-cols-3 gap-2">
+                {timeSlots.map(time => (
+                  <button
+                    key={time}
+                    onClick={() => setSelectedTime(time)}
+                    className={`py-2.5 rounded-lg text-sm transition-colors ${
+                      selectedTime === time
+                        ? "bg-[#10B981] text-white"
+                        : "bg-gray-50 text-gray-700 border border-gray-200 hover:border-[#10B981]"
+                    }`}
+                  >
+                    {time}
                   </button>
-                  <button type="button" onClick={() => setForm(f => ({ ...f, is_remote: true }))}
-                    className={`flex-1 py-2.5 rounded-xl text-sm border transition-colors ${form.is_remote ? "bg-purple-50 border-purple-400 text-purple-700" : "bg-gray-50 border-gray-200 text-gray-500"}`}>
-                    Remote
-                  </button>
-                </div>
-
-                {!form.is_remote && (
-                  <>
-                    <input value={form.location_city} onChange={e => setForm(f => ({ ...f, location_city: e.target.value }))}
-                      placeholder="City (e.g. London)"
-                      className="w-full px-4 py-3 bg-gray-50 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#10B981] text-sm" />
-
-                    <button type="button" onClick={detectLocation} disabled={detectingLocation}
-                      className="w-full flex items-center justify-center gap-2 border-2 border-[#10B981] text-[#10B981] py-2.5 rounded-xl hover:bg-[#10B981]/5 transition-colors text-sm disabled:opacity-60">
-                      {detectingLocation
-                        ? <><Loader2 className="w-4 h-4 animate-spin" />Detecting...</>
-                        : <><Navigation className="w-4 h-4" />Use My Current Location</>
-                      }
-                    </button>
-
-                    <div className="grid grid-cols-2 gap-2">
-                      <div>
-                        <label className="block text-xs text-gray-500 mb-1">Latitude</label>
-                        <input value={form.lat} onChange={e => setForm(f => ({ ...f, lat: e.target.value }))}
-                          placeholder="51.5074"
-                          className="w-full px-3 py-2.5 bg-gray-50 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#10B981] text-sm" />
-                      </div>
-                      <div>
-                        <label className="block text-xs text-gray-500 mb-1">Longitude</label>
-                        <input value={form.lng} onChange={e => setForm(f => ({ ...f, lng: e.target.value }))}
-                          placeholder="-0.1276"
-                          className="w-full px-3 py-2.5 bg-gray-50 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#10B981] text-sm" />
-                      </div>
-                    </div>
-                    {form.lat && form.lng && (
-                      <div className="flex items-center gap-2 text-xs text-green-700 bg-green-50 px-3 py-2 rounded-lg">
-                        <MapPin className="w-3.5 h-3.5" />Location set — this listing will appear on the map
-                      </div>
-                    )}
-                  </>
-                )}
-              </div>
-            </div>
-
-            <div className="flex gap-3">
-              <button type="button" onClick={() => setForm(f => ({ ...f, accepts_leus: !f.accepts_leus }))}
-                className={`flex-1 py-2.5 rounded-xl text-sm font-medium transition-colors border ${form.accepts_leus ? "bg-[#10B981]/10 border-[#10B981] text-[#10B981]" : "bg-gray-50 border-gray-200 text-gray-500"}`}>
-                {form.accepts_leus ? "✓ Accepts LEUS" : "LEUS Off"}
-              </button>
-              <button type="button" onClick={() => setForm(f => ({ ...f, status: f.status === "active" ? "inactive" : "active" }))}
-                className={`flex-1 py-2.5 rounded-xl text-sm font-medium transition-colors border ${form.status === "active" ? "bg-green-50 border-green-300 text-green-700" : "bg-gray-50 border-gray-200 text-gray-500"}`}>
-                {form.status === "active" ? "✓ Active" : "Inactive"}
-              </button>
-            </div>
-
-            <div>
-              <label className="block text-sm text-gray-700 mb-2">Photos (up to 5)</label>
-              <input ref={fileInputRef} type="file" accept="image/*" multiple onChange={handleImageSelect} className="hidden" />
-              <div className="flex gap-2 flex-wrap">
-                {imagePreviews.map((preview, i) => (
-                  <div key={i} className="relative w-16 h-16 rounded-lg overflow-hidden border border-gray-200">
-                    <img src={preview} alt="" className="w-full h-full object-cover" />
-                    <button onClick={() => removeImage(i)} className="absolute top-0.5 right-0.5 w-4 h-4 bg-red-500 rounded-full flex items-center justify-center">
-                      <X className="w-2.5 h-2.5 text-white" />
-                    </button>
-                    {i === 0 && <span className="absolute bottom-0 left-0 right-0 bg-black/50 text-white text-[9px] text-center py-0.5">Cover</span>}
-                  </div>
                 ))}
-                {imagePreviews.length < 5 && (
-                  <button onClick={() => fileInputRef.current?.click()}
-                    className="w-16 h-16 border-2 border-dashed border-gray-300 rounded-lg flex flex-col items-center justify-center hover:border-[#10B981] transition-colors gap-1">
-                    <Camera className="w-5 h-5 text-gray-400" />
-                    <span className="text-[9px] text-gray-400">Add</span>
-                  </button>
-                )}
               </div>
-              <p className="text-xs text-gray-400 mt-1">First image will be the cover photo</p>
             </div>
 
-            <div className="flex gap-3 pt-2">
-              <button onClick={() => { resetForm(); setActiveTab("listings"); }}
-                className="flex-1 border border-gray-300 text-gray-600 py-3 rounded-xl text-sm">Cancel</button>
-              <button onClick={handleSave} disabled={saving}
-                className="flex-1 bg-[#10B981] text-white py-3 rounded-xl text-sm hover:bg-[#0d9668] transition-colors flex items-center justify-center gap-2 disabled:opacity-70">
-                {saving ? <><Loader2 className="w-4 h-4 animate-spin" />Saving...</> : editingId ? "Update Listing" : "Create Listing"}
-              </button>
+            {/* Payment Method */}
+            {service.accepts_leus && (
+              <div className="mb-4">
+                <label className="block text-sm text-gray-700 mb-2">Payment Method</label>
+                <div className="grid grid-cols-2 gap-3">
+                  <button
+                    onClick={() => setPaymentMethod("fiat")}
+                    className={`py-3 rounded-xl text-sm transition-colors ${
+                      paymentMethod === "fiat"
+                        ? "bg-[#1E3A8A] text-white"
+                        : "bg-gray-50 text-gray-700 border border-gray-200"
+                    }`}
+                  >
+                    Pay with GBP (£)
+                  </button>
+                  <button
+                    onClick={() => setPaymentMethod("leus")}
+                    className={`py-3 rounded-xl text-sm transition-colors relative ${
+                      paymentMethod === "leus"
+                        ? "bg-[#10B981] text-white"
+                        : "bg-gray-50 text-gray-700 border border-gray-200"
+                    }`}
+                  >
+                    Pay with LEUS (<span className="leus">ᛃ</span>)
+                    <span className="absolute -top-2 -right-2 bg-red-500 text-white text-xs px-1.5 py-0.5 rounded-full">5% off</span>
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Price breakdown */}
+            <div className="bg-gray-50 rounded-xl p-4 space-y-2">
+              <div className="flex justify-between text-sm">
+                <span className="text-gray-600">Total service price:</span>
+                <span className="text-gray-800">
+                  {paymentMethod === "fiat"
+                    ? `£${((service.price_pence || 0) / 100).toFixed(2)}`
+                    : `<span className="leus">ᛃ</span>${((service.price_pence || 0) / 100).toFixed(2)}`}
+                </span>
+              </div>
+              {discount > 0 && (
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-600">LEUS discount (5%):</span>
+                  <span className="text-green-600">-<span className="leus">ᛃ</span>{discount.toFixed(2)}</span>
+                </div>
+              )}
+              <div className="h-px bg-gray-200 my-1" />
+              <div className="flex justify-between text-sm font-medium">
+                <span className="text-gray-700">50% deposit due now:</span>
+                <span className="text-[#1E3A8A] font-semibold">
+                  {paymentMethod === "fiat" ? `£${depositPrice.toFixed(2)}` : `<span className="leus">ᛃ</span>${depositPrice.toFixed(2)}`}
+                </span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-gray-500">Remaining on completion:</span>
+                <span className="text-gray-600">
+                  {paymentMethod === "fiat" ? `£${depositPrice.toFixed(2)}` : `<span className="leus">ᛃ</span>${depositPrice.toFixed(2)}`}
+                </span>
+              </div>
             </div>
+
+            {/* Cancellation policy */}
+            <div className="mt-3 flex items-start gap-2 p-3 bg-yellow-50 rounded-lg border border-yellow-200">
+              <AlertCircle className="w-4 h-4 text-yellow-600 flex-shrink-0 mt-0.5" />
+              <p className="text-xs text-yellow-700">
+                <span className="font-medium">Cancellation policy:</span> If you cancel, a 10% fee applies and 40% of your deposit is refunded. Provider cancellations receive a full refund.
+              </p>
+            </div>
+
+            {/* Escrow info */}
+            <div className="mt-3 flex items-start gap-2 p-3 bg-blue-50 rounded-lg border border-blue-200">
+              <Shield className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
+              <p className="text-xs text-blue-700">
+                Your deposit is held in secure escrow and released to the provider only after you confirm completion.
+              </p>
+            </div>
+
+            {/* Wallet balance */}
+            {currentUser && (
+              <div className="mt-3 flex items-center justify-between text-xs text-gray-500 bg-gray-50 px-3 py-2 rounded-lg">
+                <span>Your balance:</span>
+                <span className="font-medium text-gray-700">
+                  £{((currentUser.fiat_balance_pence || 0) / 100).toFixed(2)} · <span className="leus">ᛃ</span>{Number(currentUser.leus_balance || 0).toFixed(2)}
+                </span>
+              </div>
+            )}
           </div>
-        </div>
+
+          {/* Contact Provider — secondary option for fixed listings */}
+          <div className="mt-2 px-4 py-4 bg-white/80 backdrop-blur-md border border-white/30">
+            <p className="text-xs text-gray-400 mb-3 text-center">Have questions? Chat with the provider first.</p>
+            <button
+              onClick={handleContactProvider}
+              disabled={contacting || !service.provider_id}
+              className="w-full border border-[#1E3A8A] text-[#1E3A8A] py-3 rounded-xl hover:bg-gray-50 transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
+            >
+              {contacting
+                ? <><Loader2 className="w-5 h-5 animate-spin" />Starting chat...</>
+                : <><MessageCircle className="w-5 h-5" />Contact Provider</>
+              }
+            </button>
+          </div>
+
+          {/* Fixed bottom Book Now button */}
+          <div className="fixed bottom-0 left-0 right-0 max-w-md mx-auto bg-white/90 backdrop-blur-lg border-t border-white/20 p-4">
+            <button
+              onClick={handleBooking}
+              disabled={booking}
+              className="w-full bg-[#10B981] text-white py-4 rounded-xl hover:bg-[#0d9668] transition-colors flex items-center justify-center gap-2 disabled:opacity-70 text-base font-semibold"
+            >
+              {booking
+                ? <><Loader2 className="w-5 h-5 animate-spin" />Processing...</>
+                : `Pay 50% Deposit — ${paymentMethod === "fiat" ? `£${depositPrice.toFixed(2)}` : `<span className="leus">ᛃ</span>${depositPrice.toFixed(2)}`}`
+              }
+            </button>
+          </div>
+        </>
       )}
     </div>
   );
 }
+
+
+
 
 
 

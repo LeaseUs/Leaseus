@@ -86,7 +86,7 @@ export function MintLeaf() {
       const total = leusamount + fee;
 
       if (Number(profile?.leus_balance) < total) {
-        setError(`Insufficient LEUS balance. You need Ł${total.toFixed(2)} but have Ł${Number(profile?.leus_balance).toFixed(2)}.`);
+        setError(`Insufficient LEUS balance. You need <span className="leus">ᛃ</span>${total.toFixed(2)} but have <span className="leus">ᛃ</span>${Number(profile?.leus_balance).toFixed(2)}.`);
         setCreating(false);
         return;
       }
@@ -201,14 +201,14 @@ export function MintLeaf() {
           .update({ leus_balance: Number(profile.leus_balance) + Number(mintData.leus_amount) })
           .eq("id", user.id);
 
-        setSuccess(`🎉 Successfully claimed Ł${mintData.leus_amount} LEUS!`);
+        setSuccess(`🎉 Successfully claimed <span className="leus">ᛃ</span>${mintData.leus_amount} LEUS!`);
         setClaimToken("");
         setClaimPin("");
         fetchData();
         return;
       }
 
-      setSuccess(`🎉 Successfully claimed Ł${data?.leus_amount || "?"} LEUS!`);
+      setSuccess(`🎉 Successfully claimed <span className="leus">ᛃ</span>${data?.leus_amount || "?"} LEUS!`);
       setClaimToken("");
       setClaimPin("");
       fetchData();
@@ -229,7 +229,7 @@ export function MintLeaf() {
     if (navigator.share) {
       navigator.share({
         title: "LeaseUs MintLeaf",
-        text: `I'm sending you Ł${amount} LEUS via LeaseUs MintLeaf! Use code: ${token}`,
+        text: `I'm sending you <span className="leus">ᛃ</span>${amount} LEUS via LeaseUs MintLeaf! Use code: ${token}`,
       });
     } else {
       handleCopyToken(token);
@@ -254,7 +254,7 @@ export function MintLeaf() {
         <p className="text-white/90 text-sm">Create and share LEUS value with anyone</p>
         <div className="mt-3 bg-white/20 rounded-xl px-4 py-2 inline-flex items-center gap-2">
           <Leaf className="w-4 h-4 text-white" />
-          <span className="text-white text-sm">Balance: Ł{Number(profile?.leus_balance || 0).toFixed(2)}</span>
+          <span className="text-white text-sm">Balance: <span className="leus">ᛃ</span>{Number(profile?.leus_balance || 0).toFixed(2)}</span>
         </div>
       </div>
 
@@ -313,12 +313,12 @@ export function MintLeaf() {
                 <div>
                   <label className="block text-sm text-gray-700 mb-2">LEUS Amount</label>
                   <div className="relative">
-                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 font-semibold">Ł</span>
+                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 font-semibold"><span className="leus">ᛃ</span></span>
                     <input type="number" value={amount} onChange={e => setAmount(e.target.value)}
                       placeholder="0.00" min="1" step="0.01" required
                       className="w-full pl-10 pr-4 py-3 bg-gray-50 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#10B981]" />
                   </div>
-                  <p className="text-xs text-gray-500 mt-1">Available: Ł{Number(profile?.leus_balance || 0).toFixed(2)}</p>
+                  <p className="text-xs text-gray-500 mt-1">Available: <span className="leus">ᛃ</span>{Number(profile?.leus_balance || 0).toFixed(2)}</p>
                 </div>
 
                 {/* PIN */}
@@ -346,16 +346,16 @@ export function MintLeaf() {
                   <div className="bg-gray-50 rounded-xl p-4 space-y-2">
                     <div className="flex justify-between text-sm">
                       <span className="text-gray-600">Amount to lock:</span>
-                      <span className="text-gray-800">Ł{Number(amount).toFixed(2)}</span>
+                      <span className="text-gray-800"><span className="leus">ᛃ</span>{Number(amount).toFixed(2)}</span>
                     </div>
                     <div className="flex justify-between text-sm">
                       <span className="text-gray-600">Creation fee ({profile?.subscription_tier === "premium" ? "0%" : profile?.subscription_tier === "standard" ? "0.5%" : "1%"}):</span>
-                      <span className="text-gray-800">Ł{getCreationFee().toFixed(4)}</span>
+                      <span className="text-gray-800"><span className="leus">ᛃ</span>{getCreationFee().toFixed(4)}</span>
                     </div>
                     <div className="h-px bg-gray-200" />
                     <div className="flex justify-between text-sm font-semibold">
                       <span className="text-gray-800">Total deducted:</span>
-                      <span className="text-[#10B981]">Ł{(Number(amount) + getCreationFee()).toFixed(2)}</span>
+                      <span className="text-[#10B981]"><span className="leus">ᛃ</span>{(Number(amount) + getCreationFee()).toFixed(2)}</span>
                     </div>
                   </div>
                 )}
@@ -372,7 +372,7 @@ export function MintLeaf() {
                   <CheckCircle className="w-8 h-8 text-[#10B981]" />
                 </div>
                 <h3 className="text-lg font-semibold text-gray-800 mb-1">MintLeaf Created!</h3>
-                <p className="text-sm text-gray-600 mb-6">Ł{createdMintLeaf.leus_amount} ready to share</p>
+                <p className="text-sm text-gray-600 mb-6"><span className="leus">ᛃ</span>{createdMintLeaf.leus_amount} ready to share</p>
 
                 {/* QR Code */}
                 <div className="w-64 h-64 mx-auto rounded-xl overflow-hidden mb-4 border border-gray-200">
@@ -474,7 +474,7 @@ export function MintLeaf() {
                   <div className="flex items-start justify-between mb-2">
                     <div>
                       <div className="flex items-center gap-2 mb-1">
-                        <span className="text-xl font-bold text-[#10B981]">Ł{Number(mintleaf.leus_amount).toFixed(2)}</span>
+                        <span className="text-xl font-bold text-[#10B981]"><span className="leus">ᛃ</span>{Number(mintleaf.leus_amount).toFixed(2)}</span>
                         <span className={`text-xs px-2 py-0.5 rounded-full ${
                           mintleaf.status === "active" ? "bg-green-100 text-green-700" :
                           mintleaf.status === "claimed" ? "bg-gray-100 text-gray-600" :
@@ -524,3 +524,5 @@ export function MintLeaf() {
     </div>
   );
 }
+
+

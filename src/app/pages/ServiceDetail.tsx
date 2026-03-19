@@ -101,7 +101,7 @@ export function ServiceDetail() {
       } else {
         const leusDeposit = depositLeus * 0.95;
         if (currentUser.leus_balance < leusDeposit) {
-          setError(`Insufficient LEUS balance. You need Ł${leusDeposit.toFixed(2)} for the 50% deposit.`);
+          setError(`Insufficient LEUS balance. You need <span className="leus">ᛃ</span>${leusDeposit.toFixed(2)} for the 50% deposit.`);
           setBooking(false); return;
         }
       }
@@ -151,7 +151,7 @@ export function ServiceDetail() {
         reference:        `50% deposit for ${service.title}`,
       });
 
-      alert(`Booking submitted! ✅ A 50% deposit of ${paymentMethod === "fiat" ? `£${(depositPence / 100).toFixed(2)}` : `Ł${(depositLeus * 0.95).toFixed(2)}`} has been held. The provider will confirm shortly.`);
+      alert(`Booking submitted! ✅ A 50% deposit of ${paymentMethod === "fiat" ? `£${(depositPence / 100).toFixed(2)}` : `<span className="leus">ᛃ</span>${(depositLeus * 0.95).toFixed(2)}`} has been held. The provider will confirm shortly.`);
       navigate("/home/bookings");
     } catch (err: any) {
       setError(err.message || "Failed to create booking. Please try again.");
@@ -274,7 +274,7 @@ export function ServiceDetail() {
                   </button>
                   <button onClick={() => setPaymentMethod("leus")}
                     className={`py-3 rounded-xl text-sm transition-colors relative ${paymentMethod === "leus" ? "bg-[#10B981] text-white" : "bg-gray-50 text-gray-700 border border-gray-200"}`}>
-                    Pay with LEUS (Ł)
+                    Pay with LEUS (<span className="leus">ᛃ</span>)
                     <span className="absolute -top-2 -right-2 bg-red-500 text-white text-xs px-1.5 py-0.5 rounded-full">5% off</span>
                   </button>
                 </div>
@@ -285,22 +285,22 @@ export function ServiceDetail() {
             <div className="bg-gray-50 rounded-xl p-4 space-y-2">
               <div className="flex justify-between text-sm">
                 <span className="text-gray-600">Total service price:</span>
-                <span className="text-gray-800">{paymentMethod === "fiat" ? `£${(service.price_pence / 100).toFixed(2)}` : `Ł${(service.price_pence / 100).toFixed(2)}`}</span>
+                <span className="text-gray-800">{paymentMethod === "fiat" ? `£${(service.price_pence / 100).toFixed(2)}` : `<span className="leus">ᛃ</span>${(service.price_pence / 100).toFixed(2)}`}</span>
               </div>
               {discount > 0 && (
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-600">LEUS discount (5%):</span>
-                  <span className="text-green-600">-Ł{discount.toFixed(2)}</span>
+                  <span className="text-green-600">-<span className="leus">ᛃ</span>{discount.toFixed(2)}</span>
                 </div>
               )}
               <div className="h-px bg-gray-200 my-1" />
               <div className="flex justify-between text-sm font-medium">
                 <span className="text-gray-700">50% deposit due now:</span>
-                <span className="text-[#1E3A8A] font-semibold">{paymentMethod === "fiat" ? `£${depositPrice.toFixed(2)}` : `Ł${depositPrice.toFixed(2)}`}</span>
+                <span className="text-[#1E3A8A] font-semibold">{paymentMethod === "fiat" ? `£${depositPrice.toFixed(2)}` : `<span className="leus">ᛃ</span>${depositPrice.toFixed(2)}`}</span>
               </div>
               <div className="flex justify-between text-sm">
                 <span className="text-gray-500">Remaining on completion:</span>
-                <span className="text-gray-600">{paymentMethod === "fiat" ? `£${depositPrice.toFixed(2)}` : `Ł${depositPrice.toFixed(2)}`}</span>
+                <span className="text-gray-600">{paymentMethod === "fiat" ? `£${depositPrice.toFixed(2)}` : `<span className="leus">ᛃ</span>${depositPrice.toFixed(2)}`}</span>
               </div>
             </div>
 
@@ -323,7 +323,7 @@ export function ServiceDetail() {
               <div className="mt-3 flex items-center justify-between text-xs text-gray-500 bg-gray-50 px-3 py-2 rounded-lg">
                 <span>Your balance:</span>
                 <span className="font-medium text-gray-700">
-                  £{((currentUser.fiat_balance_pence || 0) / 100).toFixed(2)} · Ł{Number(currentUser.leus_balance || 0).toFixed(2)}
+                  £{((currentUser.fiat_balance_pence || 0) / 100).toFixed(2)} · <span className="leus">ᛃ</span>{Number(currentUser.leus_balance || 0).toFixed(2)}
                 </span>
               </div>
             )}
@@ -342,7 +342,7 @@ export function ServiceDetail() {
             <button onClick={handleBooking} disabled={booking}
               className="w-full bg-[#10B981] text-white py-4 rounded-xl hover:bg-[#0d9668] transition-colors flex items-center justify-center gap-2 disabled:opacity-70">
               {booking ? <><Loader2 className="w-5 h-5 animate-spin" />Processing...</>
-                : `Pay 50% Deposit — ${paymentMethod === "fiat" ? `£${depositPrice.toFixed(2)}` : `Ł${depositPrice.toFixed(2)}`}`}
+                : `Pay 50% Deposit — ${paymentMethod === "fiat" ? `£${depositPrice.toFixed(2)}` : `<span className="leus">ᛃ</span>${depositPrice.toFixed(2)}`}`}
             </button>
           </div>
         </>
@@ -350,3 +350,5 @@ export function ServiceDetail() {
     </div>
   );
 }
+
+
