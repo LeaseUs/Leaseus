@@ -1,4 +1,3 @@
-{"rewrites":[{"source":"/(.*)","destination":"/index.html"}]}
 {
   "rewrites": [
     {
@@ -9,10 +8,5 @@
       "source": "/((?!api/).*)",
       "destination": "/index.html"
     }
-  ],
-  "functions": {
-    "api/chat.js": { "runtime": "edge" },
-    "api/generate.js": { "runtime": "edge" },
-    "api/health.js": { "runtime": "edge" }
-  }
+  ]
 }
