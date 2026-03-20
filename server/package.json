@@ -1,0 +1,15 @@
+{
+  "name": "leaseus-ai-proxy",
+  "version": "1.0.0",
+  "type": "module",
+  "main": "ollama-proxy.js",
+  "scripts": {
+    "start": "node ollama-proxy.js"
+  },
+  "dependencies": {
+    "cors": "^2.8.6",
+    "dotenv": "^16.0.0",
+    "express": "^5.2.1",
+    "node-fetch": "^3.3.2"
+  }
+}

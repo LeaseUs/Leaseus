@@ -3,6 +3,7 @@ import { Home, Wallet, Search, CalendarCheck, User, MessageCircle } from "lucide
 import { useEffect, useState } from "react";
 import { supabase } from "../../lib/supabase";
 import bgImage from "../../assets/background.png";
+import { AIChatWidget } from "./AIChatWidget";
 
 export function Layout() {
   const location                        = useLocation();
@@ -81,6 +82,9 @@ export function Layout() {
         <Outlet />
       </div>
 
+      {/* AI Chat Widget — floats above bottom nav */}
+      <AIChatWidget />
+
       {/* Bottom Navigation */}
       <nav className="fixed bottom-0 left-0 right-0 max-w-md mx-auto bg-white/80 backdrop-blur-lg border-t border-white/20 px-2 py-2 safe-area-inset-bottom">
         <div className="flex items-center justify-around">
@@ -125,6 +129,3 @@ export function Layout() {
     </div>
   );
 }
-
-
-
