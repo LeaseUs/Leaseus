@@ -1,63 +1,57 @@
-// AI service — talks to the local Ollama proxy
-// Proxy runs on your laptop at port 3001
+// LeaseUs AI — powered by Claude (Anthropic)
+// Set VITE_ANTHROPIC_API_KEY in your environment variables
 
-const AI_PROXY = import.meta.env.VITE_AI_PROXY_URL || "http://localhost:3001";
+const ANTHROPIC_API_KEY = import.meta.env.VITE_ANTHROPIC_API_KEY || "";
 
-const SYSTEM_PROMPTS = {
-  assistant: `You are LeaseUs AI, a helpful assistant for the LeaseUs service marketplace platform. 
+const SYSTEM_PROMPT = `You are LeaseUs AI, a helpful assistant for the LeaseUs service marketplace platform.
 LeaseUs connects clients with service providers for home services, professional services and more.
-Users can pay with GBP or LEUS (the platform's utility token).
-Keep responses concise, friendly and helpful. Focus on helping users find services, understand bookings and use the platform.
-Never make up specific prices or provider details.`,
+Users can pay with GBP or LEUS (the platform utility token).
+Key features:
+- Service booking with escrow protection
+- MintLeaf: share LEUS value via QR codes
+- Loyalty points that convert to LEUS
+- Local business LEUS partners shown on map
+- Subscription tiers: Basic (free), Standard (£10/mo), Premium (£25/mo)
+Keep responses concise, friendly and helpful.
+Never make up specific prices or provider details.`;
 
-  recommendations: `You are a service recommendation engine for LeaseUs marketplace.
-Based on user preferences and history, suggest relevant services.
-Always respond in valid JSON format only, no markdown, no explanation outside the JSON.`,
-
-  description: `You are a professional copywriter for LeaseUs service marketplace.
-Write compelling, concise service descriptions that highlight benefits and build trust.
-Keep descriptions under 100 words. Use professional but friendly tone.
-Respond with ONLY the description text, no extra commentary.`,
-
-  search: `You are a smart search assistant for LeaseUs marketplace.
-Convert natural language queries into structured search parameters.
-Always respond in valid JSON format only: {"query": string, "category": string|null, "location": string|null, "max_price_gbp": number|null, "leus_only": boolean}`,
-};
-
-type Role = "user" | "assistant" | "system";
+type Role = "user" | "assistant";
 interface Message { role: Role; content: string; }
 
-async function callProxy(endpoint: string, body: object): Promise<string> {
-  try {
-    const response = await fetch(`${AI_PROXY}${endpoint}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    });
-
-    if (!response.ok) throw new Error(`Proxy error: ${response.statusText}`);
-
-    const data = await response.json() as any;
-    if (data.error) throw new Error(data.error);
-    return data.content || "";
-  } catch (err: any) {
-    if (err.message?.includes("fetch")) {
-      throw new Error("AI assistant is offline. Make sure Ollama and the proxy server are running.");
-    }
-    throw err;
+// ── Core API call ─────────────────────────────────────────────
+async function callClaude(messages: Message[]): Promise<string> {
+  if (!ANTHROPIC_API_KEY) {
+    throw new Error("AI not configured. Add VITE_ANTHROPIC_API_KEY to your environment variables.");
   }
+
+  const response = await fetch("https://api.anthropic.com/v1/messages", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-api-key": ANTHROPIC_API_KEY,
+      "anthropic-version": "2023-06-01",
+      "anthropic-dangerous-direct-browser-access": "true",
+    },
+    body: JSON.stringify({
+      model: "claude-haiku-4-5-20251001",
+      max_tokens: 1024,
+      system: SYSTEM_PROMPT,
+      messages: messages.map(m => ({ role: m.role, content: m.content })),
+    }),
+  });
+
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({})) as any;
+    throw new Error(err?.error?.message || `API error: ${response.status}`);
+  }
+
+  const data = await response.json() as any;
+  return data.content?.[0]?.text || "I could not generate a response. Please try again.";
 }
 
-// ── Chat with context ─────────────────────────────────────────
-export async function chatWithAI(
-  messages: Message[],
-  systemPrompt = SYSTEM_PROMPTS.assistant
-): Promise<string> {
-  const fullMessages: Message[] = [
-    { role: "system", content: systemPrompt },
-    ...messages,
-  ];
-  return callProxy("/api/chat", { messages: fullMessages });
+// ── Chat ──────────────────────────────────────────────────────
+export async function chatWithAI(messages: Message[]): Promise<string> {
+  return callClaude(messages);
 }
 
 // ── Smart search ──────────────────────────────────────────────
@@ -68,61 +62,49 @@ export async function smartSearch(query: string): Promise<{
   max_price_gbp: number | null;
   leus_only: boolean;
 }> {
-  const prompt = `Convert this search query into JSON search parameters: "${query}"`;
-  const result = await callProxy("/api/chat", {
-    messages: [
-      { role: "system", content: SYSTEM_PROMPTS.search },
-      { role: "user", content: prompt },
-    ],
-  });
-
+  const result = await callClaude([{
+    role: "user",
+    content: `Convert this search to JSON (respond with JSON only, no markdown): "${query}"
+Format: {"query": string, "category": string|null, "location": string|null, "max_price_gbp": number|null, "leus_only": boolean}`,
+  }]);
   try {
-    const cleaned = result.replace(/```json|```/g, "").trim();
-    return JSON.parse(cleaned);
+    return JSON.parse(result.replace(/```json|```/g, "").trim());
   } catch {
     return { query, category: null, location: null, max_price_gbp: null, leus_only: false };
   }
 }
 
 // ── Generate service description ──────────────────────────────
-export async function generateDescription(serviceTitle: string, category: string, keywords: string): Promise<string> {
-  const prompt = `Write a service description for: "${serviceTitle}" in the ${category} category. Keywords: ${keywords}`;
-  return callProxy("/api/chat", {
-    messages: [
-      { role: "system", content: SYSTEM_PROMPTS.description },
-      { role: "user", content: prompt },
-    ],
-  });
+export async function generateDescription(
+  title: string,
+  category: string,
+  keywords: string
+): Promise<string> {
+  return callClaude([{
+    role: "user",
+    content: `Write a service description (under 100 words, professional but friendly) for: "${title}" in ${category}. Keywords: ${keywords}. Respond with ONLY the description text.`,
+  }]);
 }
 
 // ── Get recommendations ───────────────────────────────────────
-export async function getRecommendations(userHistory: string[], preferences: string): Promise<any[]> {
-  const prompt = `User booking history: ${userHistory.join(", ")}. 
-Preferences: ${preferences}.
-Suggest 3 services they might like from these categories: Cleaning, Plumbing, IT Services, Hair & Beauty, Photography, Tutoring, Gardening, Personal Training.
-Return JSON array: [{"title": string, "category": string, "reason": string}]`;
-
-  const result = await callProxy("/api/chat", {
-    messages: [
-      { role: "system", content: SYSTEM_PROMPTS.recommendations },
-      { role: "user", content: prompt },
-    ],
-  });
-
+export async function getRecommendations(
+  userHistory: string[],
+  preferences: string
+): Promise<any[]> {
+  const result = await callClaude([{
+    role: "user",
+    content: `User history: ${userHistory.join(", ")}. Preferences: ${preferences}.
+Suggest 3 services from: Cleaning, Plumbing, IT Services, Hair & Beauty, Photography, Tutoring, Gardening, Personal Training.
+Return JSON array only: [{"title": string, "category": string, "reason": string}]`,
+  }]);
   try {
-    const cleaned = result.replace(/```json|```/g, "").trim();
-    return JSON.parse(cleaned);
+    return JSON.parse(result.replace(/```json|```/g, "").trim());
   } catch {
     return [];
   }
 }
 
-// ── Check if AI is available ──────────────────────────────────
+// ── Status check ──────────────────────────────────────────────
 export async function checkAIStatus(): Promise<boolean> {
-  try {
-    const response = await fetch(`${AI_PROXY}/health`);
-    return response.ok;
-  } catch {
-    return false;
-  }
+  return !!ANTHROPIC_API_KEY;
 }
