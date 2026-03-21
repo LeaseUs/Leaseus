@@ -15,7 +15,7 @@ const API_KEY = process.env.OLLAMA_API_KEY;
 const MODEL = process.env.OLLAMA_MODEL || "gemma3:1b-cloud";
 
 // Correct Ollama cloud API base URL
-const OLLAMA_CLOUD = "http://localhost:11434/api";
+const OLLAMA_CLOUD = process.env.OLLAMA_CLOUD_URL || "http://localhost:11434/api";
 
 app.use(cors());
 app.use(express.json());
