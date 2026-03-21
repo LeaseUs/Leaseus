@@ -202,7 +202,7 @@ export function Login() {
         publicKey: {
           challenge,
           allowCredentials: [{
-            id: base64URLToUint8Array(credentialId),
+            id: base64URLToUint8Array(credentialId) as BufferSource,
             type: "public-key",
             transports: ["internal"],
           }],

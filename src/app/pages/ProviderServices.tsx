@@ -108,11 +108,11 @@ export function ServiceDetail() {
         accepts_leus:  data.accepts_leus,
         is_remote:     data.is_remote,
         location_city: data.location_city,
-        provider_id:   data.profiles?.id || null,
-        provider_name: data.profiles?.full_name || "Unknown Provider",
-        provider_avatar: data.profiles?.avatar_url || null,
-        avg_rating:    data.profiles?.avg_rating || 0,
-        total_reviews: data.profiles?.total_reviews || 0,
+        provider_id:   data.profiles?.[0]?.id || null,
+        provider_name: data.profiles?.[0]?.full_name || "Unknown Provider",
+        provider_avatar: data.profiles?.[0]?.avatar_url || null,
+        avg_rating:    data.profiles?.[0]?.avg_rating || 0,
+        total_reviews: data.profiles?.[0]?.total_reviews || 0,
         primary_image: data.listing_images?.find((img: any) => img.is_primary)?.url
           || data.listing_images?.[0]?.url
           || "https://images.unsplash.com/photo-1581578731548-c64695cc6952?w=800&h=400&fit=crop",

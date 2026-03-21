@@ -24,8 +24,9 @@ export function AIDescriptionGenerator({ serviceTitle, category, onGenerated }: 
     try {
       const description = await generateDescription(serviceTitle, category, keywords);
       setGenerated(description);
-    } catch (err: any) {
-      setError(err.message || "Failed to generate description.");
+    } catch (err: unknown) {
+      const errorMessage = err instanceof Error ? err.message : "Failed to generate description.";
+      setError(errorMessage);
     } finally {
       setLoading(false);
     }

@@ -290,7 +290,9 @@ function ProviderServicesView() {
         listingId = data.id;
       }
       for (let i = 0; i < images.length; i++) {
-        const file = images[i]; const ext = file.name.split(".").pop();
+        const file = images[i];
+        if (!file) continue;
+        const ext = file.name.split(".").pop();
         const path = `listings/${listingId}/${Date.now()}_${i}.${ext}`;
         await supabase.storage.from("listing-images").upload(path, file, { upsert: true });
         const { data: urlData } = supabase.storage.from("listing-images").getPublicUrl(path);

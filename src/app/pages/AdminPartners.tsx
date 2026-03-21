@@ -1,5 +1,5 @@
-import { useState, useEffect } from "react";
-import { CheckCircle, XCircle, MapPin, Phone, Globe, Mail, User, Building2, Loader2, RefreshCw, Eye } from "lucide-react";
+import { useState, useEffect, useCallback } from "react";
+import { CheckCircle, XCircle, MapPin, Phone, Globe, Mail, User, Building2, Loader2, RefreshCw } from "lucide-react";
 import { supabase } from "../../lib/supabase";
 
 type Application = {
@@ -48,7 +48,7 @@ export function AdminPartners() {
     finally { setCheckingAdmin(false); }
   };
 
-  const fetchApplications = async () => {
+  const fetchApplications = useCallback(async () => {
     setLoading(true);
     try {
       const { data, error } = await supabase
@@ -58,12 +58,15 @@ export function AdminPartners() {
         .order("created_at", { ascending: false });
       if (error) throw error;
       setApplications(data || []);
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err: unknown) {
+      const errorMessage = err instanceof Error ? err.message : "Failed to fetch applications";
+      setError(errorMessage);
     } finally {
       setLoading(false);
     }
-  };
+  }, [filter]);
+
+  useEffect(() => { if (isAdmin) fetchApplications(); }, [filter, isAdmin, fetchApplications]);
 
   const handleApprove = async (app: Application) => {
     setActionLoading(app.id);
@@ -95,8 +98,9 @@ export function AdminPartners() {
       setSuccess(`✅ ${app.name} approved and added to the map!`);
       setSelected(null);
       fetchApplications();
-    } catch (err: any) {
-      setError(err.message || "Failed to approve application.");
+    } catch (err: unknown) {
+      const errorMessage = err instanceof Error ? err.message : "Failed to approve application.";
+      setError(errorMessage);
     } finally {
       setActionLoading(null);
     }
@@ -119,8 +123,9 @@ export function AdminPartners() {
       setSelected(null);
       setRejectReason("");
       fetchApplications();
-    } catch (err: any) {
-      setError(err.message || "Failed to reject application.");
+    } catch (err: unknown) {
+      const errorMessage = err instanceof Error ? err.message : "Failed to reject application.";
+      setError(errorMessage);
     } finally {
       setActionLoading(null);
     }
@@ -143,7 +148,7 @@ export function AdminPartners() {
         <div className="text-center">
           <p className="text-2xl mb-2">🔒</p>
           <h2 className="text-xl font-bold text-gray-800 mb-2">Admin Access Only</h2>
-          <p className="text-gray-500 text-sm">You don't have permission to view this page.</p>
+          <p className="text-gray-500 text-sm">You don&apos;t have permission to view this page.</p>
         </div>
       </div>
     );
@@ -241,7 +246,7 @@ export function AdminPartners() {
 
                 {app.description && (
                   <p className="text-xs text-gray-500 italic mb-4 bg-gray-50 rounded-lg p-3">
-                    "{app.description}"
+                    &ldquo;{app.description}&rdquo;
                   </p>
                 )}
 

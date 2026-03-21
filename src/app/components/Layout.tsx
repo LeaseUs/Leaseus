@@ -1,6 +1,6 @@
 import { Outlet, Link, useLocation } from "react-router";
 import { Home, Wallet, Search, CalendarCheck, User, MessageCircle } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { supabase } from "../../lib/supabase";
 import bgImage from "../../assets/background.png";
 import { AIChatWidget } from "./AIChatWidget";
@@ -19,21 +19,7 @@ export function Layout() {
     { icon: User,          label: "Profile",  path: "/home/profile" },
   ];
 
-  useEffect(() => {
-    fetchCounts();
-
-    const channel = supabase
-      .channel("nav-counts")
-      .on("postgres_changes", { event: "INSERT", schema: "public", table: "messages" }, () => fetchCounts())
-      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "messages" }, () => fetchCounts())
-      .on("postgres_changes", { event: "INSERT", schema: "public", table: "bookings" }, () => fetchCounts())
-      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "bookings" }, () => fetchCounts())
-      .subscribe();
-
-    return () => { supabase.removeChannel(channel); };
-  }, []);
-
-  const fetchCounts = async () => {
+  const fetchCounts = useCallback(async () => {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
@@ -64,7 +50,21 @@ export function Layout() {
 
       setPendingBookings(bookingCount || 0);
     } catch { /* silent */ }
-  };
+  }, []);
+
+  useEffect(() => {
+    fetchCounts();
+
+    const channel = supabase
+      .channel("nav-counts")
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "messages" }, () => fetchCounts())
+      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "messages" }, () => fetchCounts())
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "bookings" }, () => fetchCounts())
+      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "bookings" }, () => fetchCounts())
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
+  }, [fetchCounts]);
 
   return (
     <div

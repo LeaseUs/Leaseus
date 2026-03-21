@@ -6,7 +6,9 @@
   "scripts": {
     "build": "vite build",
     "dev": "vite",
-    "ai": "node server/ollama-proxy.js"
+    "ai": "node server/ollama-proxy.js",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint \"src/**/*.{js,jsx,ts,tsx}\" \"server/**/*.{js,ts}\""
   },
   "dependencies": {
     "@emotion/react": "11.14.0",
@@ -74,13 +76,20 @@
   "devDependencies": {
     "@tailwindcss/vite": "4.1.12",
     "@types/mapbox-gl": "^3.5.0",
+    "@types/node": "^25.5.0",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
+    "@typescript-eslint/eslint-plugin": "^8.57.1",
+    "@typescript-eslint/parser": "^8.57.1",
     "@vitejs/plugin-react": "4.7.0",
     "cors": "^2.8.6",
+    "eslint": "^8.57.0",
+    "eslint-plugin-react": "^7.37.5",
+    "eslint-plugin-react-hooks": "^7.0.1",
     "express": "^5.2.1",
     "node-fetch": "^3.3.2",
     "tailwindcss": "4.1.12",
+    "typescript": "^5.9.3",
     "vite": "6.3.5"
   },
   "peerDependencies": {

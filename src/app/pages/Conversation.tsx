@@ -97,7 +97,7 @@ export function Conversation() {
         const otherUser = convData.client_id === user.id ? convData.provider : convData.client;
         setOther(otherUser);
         const { data: block } = await supabase.from("user_blocks").select("id")
-          .eq("blocker_id", user.id).eq("blocked_id", otherUser?.id).maybeSingle();
+          .eq("blocker_id", user.id).eq("blocked_id", (otherUser as any)?.id).maybeSingle();
         setIsBlocked(!!block);
 
         // Fetch active booking for this conversation

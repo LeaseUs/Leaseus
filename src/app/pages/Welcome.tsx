@@ -75,10 +75,10 @@ export function Welcome() {
             transition={{ duration: 0.3 }}
             className="text-center w-full"
           >
-            <div className={`w-32 h-32 ${slides[currentSlide].bgColor} rounded-full flex items-center justify-center mx-auto mb-8`}>
+            <div className={`w-32 h-32 ${slides[currentSlide]?.bgColor || ''} rounded-full flex items-center justify-center mx-auto mb-8`}>
               {(() => {
-                const Icon = slides[currentSlide].icon;
-                return <Icon className={`w-16 h-16 ${slides[currentSlide].color}`} />;
+                const Icon = slides[currentSlide]?.icon;
+                return Icon ? <Icon className={`w-16 h-16 ${slides[currentSlide]?.color || ''}`} /> : null;
               })()}
             </div>
             <h2 
@@ -88,10 +88,10 @@ export function Welcome() {
                 fontStyle: currentSlide === 0 ? 'italic' : 'normal'
               }}
             >
-              {slides[currentSlide].title}
+              {slides[currentSlide]?.title}
             </h2>
             <p className="text-gray-700 text-base leading-relaxed px-4">
-              {slides[currentSlide].description}
+              {slides[currentSlide]?.description}
             </p>
           </motion.div>
         </AnimatePresence>

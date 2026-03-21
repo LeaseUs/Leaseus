@@ -22,7 +22,7 @@ export function AIChatWidget() {
   ]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
+  const [_error, setError] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -44,8 +44,9 @@ export function AIChatWidget() {
         newMessages.map(m => ({ role: m.role, content: m.content }))
       );
       setMessages([...newMessages, { role: "assistant", content: reply }]);
-    } catch (err: any) {
-      setError(err.message || "Failed to get response.");
+    } catch (err: unknown) {
+      const errorMessage = err instanceof Error ? err.message : "Failed to get response.";
+      setError(errorMessage);
       setMessages([...newMessages, { role: "assistant", content: "Sorry, I'm having trouble connecting right now. Please make sure the AI server is running." }]);
     } finally {
       setLoading(false);
