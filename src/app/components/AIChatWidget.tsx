@@ -18,7 +18,7 @@ const SUGGESTIONS = [
 export function AIChatWidget() {
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([
-    { role: "assistant", content: "Hi! I'm your LeaseUs AI assistant powered by Gemma. How can I help you today?" },
+    { role: "assistant", content: "Hi! I'm your LeaseUs AI assistant powered by Claude. How can I help you today?" },
   ]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
