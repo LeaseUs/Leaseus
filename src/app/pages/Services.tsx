@@ -72,10 +72,11 @@ function ClientServicesView() {
   const [leusOnly, setLeusOnly]             = useState(false);
   const [searchQuery, setSearchQuery]       = useState("");
   const [listings, setListings]             = useState<Listing[]>([]);
-  const [providers, setProviders]           = useState<any[]>([]);
   const [loading, setLoading]               = useState(true);
-  const [providerName, setProviderName]     = useState<string | null>(null);   // ← FIXED: was missing
-  const [providerFilter, setProviderFilter] = useState<string | null>(null);
+  const [providerName, setProviderName]         = useState<string | null>(null);
+  const [providerFilter, setProviderFilter]     = useState<string | null>(null);
+  const [featuredProviders, setFeaturedProviders] = useState<any[]>([]);
+  const [providersLoading, setProvidersLoading]   = useState(true);
 
   // Filter states
   const [selectedCategory, setSelectedCategory] = useState("");
@@ -102,19 +103,33 @@ function ClientServicesView() {
     setProviderFilter(providerId);
     if (providerId) {
       supabase.from("profiles").select("full_name").eq("id", providerId).single()
-        .then(({ data }) => setProviderName(data?.full_name || "Provider"))
-        .catch(() => setProviderName("Provider"));
+        .then(({ data }) => { setProviderName(data?.full_name || "Provider"); })
+        .then(undefined, () => { setProviderName("Provider"); });
     } else {
       setProviderName(null);
     }
     fetchListings(false, "", providerId, "", "", 0, "", "relevance");
-    fetchProviders();
+    fetchFeaturedProviders();
   }, []);
 
   useEffect(() => {
     if (providerFilter === null && !loading) return;
     fetchListings(leusOnly, searchQuery, providerFilter, selectedCategory, priceRange, minRating, locationType, sortBy);
   }, [leusOnly, searchQuery, selectedCategory, priceRange, minRating, locationType, sortBy]);
+
+  const fetchFeaturedProviders = async () => {
+    setProvidersLoading(true);
+    try {
+      const { data } = await supabase
+        .from("profiles")
+        .select("id, full_name, avatar_url, avg_rating, total_reviews, kyc_verified, location_city, bio")
+        .in("role", ["provider", "local_business"])
+        .order("avg_rating", { ascending: false })
+        .limit(8);
+      setFeaturedProviders(data || []);
+    } catch { /* silent */ }
+    finally { setProvidersLoading(false); }
+  };
 
   const fetchListings = async (
     leusFilter = leusOnly,
@@ -182,37 +197,6 @@ function ClientServicesView() {
     } catch {
       setListings(leusOnly ? mockListings.filter(l => l.accepts_leus) : mockListings);
     } finally { setLoading(false); }
-  };
-
-  const fetchProviders = async () => {
-    try {
-      const { data, error } = await supabase
-        .from("profiles")
-        .select(`
-          id, full_name, bio, role, avatar_url, kyc_verified,
-          avg_rating, total_reviews, business_address, location_city,
-          business_lat, business_lng,
-          listings!provider_id(count)
-        `)
-        .in("role", ["provider", "local_business"])
-        .eq("listings.status", "active")
-        .order("avg_rating", { ascending: false })
-        .limit(20);
-
-      if (error) {
-        console.error("Error fetching providers:", error);
-        setProviders([]);
-      } else {
-        const formattedProviders = (data || []).map((provider: any) => ({
-          ...provider,
-          services_count: provider.listings?.[0]?.count || 0,
-        }));
-        setProviders(formattedProviders);
-      }
-    } catch (error) {
-      console.error("Error fetching providers:", error);
-      setProviders([]);
-    }
   };
 
   const formatPrice = (l: Listing) => {
@@ -304,7 +288,7 @@ function ClientServicesView() {
               <div>
                 <label className="block text-xs text-gray-600 mb-2">Service Type</label>
                 <div className="flex gap-2">
-                  {[["", "All"], ["in-person", "In-Person"], ["remote", "Remote"]].map(([val, label]) => (
+                  {([["", "All"], ["in-person", "In-Person"], ["remote", "Remote"]] as [string, string][]).map(([val, label]) => (
                     <button key={val} onClick={() => setLocationType(val)}
                       className={`flex-1 py-2 rounded-lg text-xs transition-colors ${locationType === val ? "bg-[#1E3A8A] text-white" : "bg-gray-50 text-gray-700 border border-gray-200"}`}>
                       {label}
@@ -335,53 +319,46 @@ function ClientServicesView() {
         </div>
       )}
 
-      {/* Providers Section */}
-      {!providerFilter && providers.length > 0 && (
-        <div className="px-4 py-4">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg text-[#1E3A8A] font-semibold">Featured Providers</h2>
-            <button
-              onClick={() => navigate("/home/providers")}
-              className="text-sm text-[#10B981] hover:underline flex items-center gap-1"
-            >
-              View All <ChevronRight className="w-4 h-4" />
-            </button>
+      {/* Featured Providers — only show when not filtering by provider */}
+      {!providerFilter && !showFilters && (
+        <div className="mt-4 mb-2">
+          <div className="flex items-center justify-between px-4 mb-3">
+            <h2 className="text-sm font-semibold text-gray-800">Featured Providers</h2>
+            <button onClick={() => navigate("/home/providers")}
+              className="text-xs text-[#10B981] hover:underline">View all</button>
           </div>
-          <div className="flex gap-3 overflow-x-auto pb-2">
-            {providers.slice(0, 6).map((provider) => (
-              <div
-                key={provider.id}
-                onClick={() => navigate(`/home/provider/${provider.id}`)}
-                className="flex-shrink-0 w-32 bg-white/80 backdrop-blur-md rounded-xl p-3 border border-white/30 hover:shadow-md transition-all cursor-pointer"
-              >
-                <div className="flex flex-col items-center text-center">
+          {providersLoading ? (
+            <div className="flex justify-center py-4">
+              <Loader2 className="w-5 h-5 animate-spin text-[#1E3A8A]" />
+            </div>
+          ) : featuredProviders.length === 0 ? null : (
+            <div className="flex gap-3 overflow-x-auto px-4 pb-2 scrollbar-hide">
+              {featuredProviders.map(provider => (
+                <button key={provider.id}
+                  onClick={() => navigate(`/home/provider/${provider.id}`)}
+                  className="flex-shrink-0 bg-white/80 backdrop-blur-md rounded-2xl p-3 shadow-sm border border-white/30 w-28 text-center hover:shadow-md transition-shadow">
                   {provider.avatar_url ? (
-                    <img
-                      src={provider.avatar_url}
-                      alt={provider.full_name}
-                      className="w-12 h-12 rounded-full object-cover mb-2"
-                    />
+                    <img src={provider.avatar_url} alt={provider.full_name}
+                      className="w-14 h-14 rounded-full object-cover mx-auto mb-2 border-2 border-[#10B981]/30" />
                   ) : (
-                    <div className="w-12 h-12 bg-gradient-to-br from-[#10B981] to-[#14B8A6] rounded-full flex items-center justify-center text-white text-lg mb-2">
-                      {provider.full_name?.split(" ").map((n: string) => n[0]).join("").toUpperCase() || "?"}
+                    <div className="w-14 h-14 rounded-full bg-gradient-to-br from-[#1E3A8A] to-[#10B981] flex items-center justify-center mx-auto mb-2 text-white text-lg font-bold">
+                      {provider.full_name?.split(" ").map((n: string) => n[0]).join("").toUpperCase().slice(0, 2)}
                     </div>
                   )}
-                  <h3 className="text-xs font-semibold text-gray-800 mb-1 line-clamp-2">
-                    {provider.full_name}
-                  </h3>
-                  <div className="flex items-center gap-1 mb-1">
+                  <p className="text-xs font-medium text-gray-800 truncate mb-1">{provider.full_name}</p>
+                  <div className="flex items-center justify-center gap-0.5">
                     <Star className="w-3 h-3 fill-yellow-400 text-yellow-400" />
                     <span className="text-xs text-gray-600">
-                      {provider.avg_rating > 0 ? provider.avg_rating.toFixed(1) : "New"}
+                      {provider.avg_rating > 0 ? Number(provider.avg_rating).toFixed(1) : "New"}
                     </span>
                   </div>
-                  <p className="text-xs text-gray-500">
-                    {provider.services_count} service{provider.services_count !== 1 ? "s" : ""}
-                  </p>
-                </div>
-              </div>
-            ))}
-          </div>
+                  {provider.kyc_verified && (
+                    <span className="text-[10px] text-[#10B981] mt-0.5 block">✓ Verified</span>
+                  )}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
       )}
 

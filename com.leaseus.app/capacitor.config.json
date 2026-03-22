@@ -1,0 +1,10 @@
+{
+  "appId": "com.leaseus.app",
+  "appName": "LeaseUs",
+  "webDir": "dist",
+  "plugins": {
+    "SplashScreen": {
+      "launchAutoHide": false
+    }
+  }
+}
