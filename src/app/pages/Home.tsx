@@ -277,13 +277,26 @@ export function Home() {
   const firstName      = profile?.full_name?.split(" ")[0] || "there";
   const isProvider     = profile?.role === "provider" || profile?.role === "local_business";
 
+  const handleSelectNearby = (item: any) => {
+    if (item.lat && item.lng && map.current) {
+      map.current.flyTo({ center: [item.lng, item.lat], zoom: 15 });
+      if (item.type === "provider") {
+        // optional: route to the provider detail page if exists
+        // navigate(`/home/service/${item.id}`);
+      } else {
+        // optional: route to partner info page
+        // navigate(`/home/partners/${item.id}`);
+      }
+    }
+  };
+
   const filteredList = mapFilter === "providers"
-    ? nearbyProviders.slice(0, 3).map((p: any) => ({ id: p.id, name: p.full_name, category: p.business_category || "Service Provider", type: "provider", rating: p.avg_rating }))
+    ? nearbyProviders.slice(0, 3).map((p: any) => ({ id: p.id, name: p.full_name, category: p.business_category || "Service Provider", type: "provider", rating: p.avg_rating, lat: p.business_lat, lng: p.business_lng }))
     : mapFilter === "partners"
-    ? nearbyBusinesses.slice(0, 3).map((b: any) => ({ id: b.id, name: b.business_name || b.full_name, category: b.business_category || "Local business", type: "partner" }))
+    ? nearbyBusinesses.slice(0, 3).map((b: any) => ({ id: b.id, name: b.business_name || b.full_name, category: b.business_category || "Local business", type: "partner", lat: b.business_lat, lng: b.business_lng }))
     : [
-        ...nearbyProviders.slice(0, 2).map((p: any) => ({ id: p.id, name: p.full_name, category: p.business_category || "Service Provider", type: "provider", rating: p.avg_rating })),
-        ...nearbyBusinesses.slice(0, 2).map((b: any) => ({ id: b.id, name: b.business_name || b.full_name, category: b.business_category || "Local business", type: "partner" })),
+        ...nearbyProviders.slice(0, 2).map((p: any) => ({ id: p.id, name: p.full_name, category: p.business_category || "Service Provider", type: "provider", rating: p.avg_rating, lat: p.business_lat, lng: p.business_lng })),
+        ...nearbyBusinesses.slice(0, 2).map((b: any) => ({ id: b.id, name: b.business_name || b.full_name, category: b.business_category || "Local business", type: "partner", lat: b.business_lat, lng: b.business_lng })),
       ].slice(0, 4);
 
   return (
@@ -639,7 +652,8 @@ export function Home() {
                   <p className="text-sm text-gray-500">{mapFilter === "providers" ? "No providers nearby yet" : mapFilter === "partners" ? "No LEUS partners nearby yet" : "Nothing nearby yet"}</p>
                 </div>
               ) : filteredList.map((item: any) => (
-                <div key={item.id} className="bg-white/80 backdrop-blur-md rounded-xl p-3 flex items-center justify-between border border-white/30 shadow-sm">
+                <button key={item.id} onClick={() => handleSelectNearby(item)}
+                  className={`w-full text-left bg-white/80 backdrop-blur-md rounded-xl p-3 flex items-center justify-between border border-white/30 shadow-sm transition hover:bg-[#eef5ff]`}>
                   <div className="flex items-center gap-3">
                     <div className={`w-10 h-10 rounded-full flex items-center justify-center ${item.type === "provider" ? "bg-[#10B981]/10" : "bg-[#1E3A8A]/10"}`}>
                       {item.type === "provider" ? <Wrench className="w-5 h-5 text-[#10B981]" /> : <MapPin className="w-5 h-5 text-[#1E3A8A]" />}
@@ -647,13 +661,14 @@ export function Home() {
                     <div>
                       <p className="text-sm font-medium text-gray-800">{item.name}</p>
                       <p className="text-xs text-gray-500">{item.category}</p>
+                      <p className="text-xs text-gray-500">{item.lat && item.lng ? `(${item.lat.toFixed(4)}, ${item.lng.toFixed(4)})` : "Location data unavailable"}</p>
                     </div>
                   </div>
                   {item.type === "partner"
                     ? <span className="bg-[#10B981] text-white text-xs px-2 py-1 rounded-full">LEUS</span>
                     : <span className="bg-[#1E3A8A] text-white text-xs px-2 py-1 rounded-full">{item.rating ? `★ ${Number(item.rating).toFixed(1)}` : "Provider"}</span>
                   }
-                </div>
+                </button>
               ))}
             </div>
           </div>
