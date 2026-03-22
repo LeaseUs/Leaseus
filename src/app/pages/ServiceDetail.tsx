@@ -338,7 +338,7 @@ export function ServiceDetail() {
           </div>
 
           {/* Fixed bottom Book Now */}
-          <div className="fixed bottom-0 left-0 right-0 max-w-md mx-auto bg-white/80 backdrop-blur-lg border-t border-white/20 p-4">
+          <div className="fixed bottom-16 left-0 right-0 max-w-md mx-auto bg-white/80 backdrop-blur-lg border-t border-white/20 p-4 z-50">
             <button onClick={handleBooking} disabled={booking}
               className="w-full bg-[#10B981] text-white py-4 rounded-xl hover:bg-[#0d9668] transition-colors flex items-center justify-center gap-2 disabled:opacity-70">
               {booking ? <><Loader2 className="w-5 h-5 animate-spin" />Processing...</>
