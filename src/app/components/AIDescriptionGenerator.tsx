@@ -43,7 +43,7 @@ export function AIDescriptionGenerator({ serviceTitle, category, onGenerated }: 
       <div className="flex items-center gap-2 mb-3">
         <Sparkles className="w-4 h-4 text-[#10B981]" />
         <p className="text-sm font-semibold text-[#10B981]">AI Description Generator</p>
-        <span className="text-xs bg-[#10B981]/20 text-[#10B981] px-2 py-0.5 rounded-full">Gemma</span>
+        <span className="text-xs bg-[#10B981]/20 text-[#10B981] px-2 py-0.5 rounded-full">Claude</span>
       </div>
 
       <div className="mb-3">

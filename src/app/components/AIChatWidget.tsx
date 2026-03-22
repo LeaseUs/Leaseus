@@ -81,7 +81,7 @@ export function AIChatWidget() {
                 </div>
                 <div>
                   <p className="text-white font-semibold text-sm">LeaseUs AI</p>
-                  <p className="text-white/70 text-xs">Powered by Gemma</p>
+                  <p className="text-white/70 text-xs">Powered by Claude</p>
                 </div>
               </div>
               <button onClick={() => setOpen(false)} className="p-1 hover:bg-white/20 rounded-full transition-colors">
