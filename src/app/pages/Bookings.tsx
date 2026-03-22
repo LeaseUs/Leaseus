@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router";
 import {
   Calendar, Clock, CheckCircle, XCircle, AlertCircle,
-  Loader2, Star, MessageCircle, RefreshCw, ChevronDown, ChevronUp,
+  Loader2, Star, MessageCircle, RefreshCw, ChevronDown, ChevronUp, Shield, X,
 } from "lucide-react";
 import { supabase } from "../../lib/supabase";
 
@@ -25,10 +25,11 @@ export function Bookings() {
   const [profile, setProfile]               = useState<any>(null);
   const [bookings, setBookings]             = useState<any[]>([]);
   const [loading, setLoading]               = useState(true);
-  const [activeTab, setActiveTab]           = useState<"active" | "completed">("active");
+  const [activeTab, setActiveTab]           = useState<"active" | "completed" | "escrow">("active");
   const [actionLoading, setActionLoading]   = useState<string | null>(null);
   const [expandedId, setExpandedId]         = useState<string | null>(null);
   const [showReviewId, setShowReviewId]     = useState<string | null>(null);
+  const [showEscrowModal, setShowEscrowModal] = useState(false);
   const [reviewRating, setReviewRating]     = useState(5);
   const [reviewBody, setReviewBody]         = useState("");
   const [submittingReview, setSubmittingReview] = useState(false);
@@ -177,7 +178,8 @@ export function Bookings() {
   const isProvider        = profile?.role === "provider" || profile?.role === "local_business";
   const activeStatuses    = ["pending", "confirmed", "in_progress"];
   const completedStatuses = ["completed", "cancelled", "disputed"];
-  const filteredBookings  = bookings.filter(b => activeTab === "active" ? activeStatuses.includes(b.status) : completedStatuses.includes(b.status));
+  const escrowBookings    = bookings.filter(b => b.deposit_held && !completedStatuses.includes(b.status));
+  const filteredBookings  = activeTab === "escrow" ? escrowBookings : bookings.filter(b => activeTab === "active" ? activeStatuses.includes(b.status) : completedStatuses.includes(b.status));
   const formatDate        = (d: string) => new Date(d).toLocaleDateString("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
   const formatAmount      = (b: any) => b.payment_method === "fiat" ? `£${((b.amount_pence || 0) / 100).toFixed(2)}` : `<span className="leus">ᛃ</span>${Number(b.amount_leus || 0).toFixed(2)}`;
   const formatDeposit     = (b: any) => b.payment_method === "fiat" ? `£${((b.deposit_pence || 0) / 100).toFixed(2)}` : `<span className="leus">ᛃ</span>${Number(b.deposit_leus || 0).toFixed(2)}`;
@@ -207,17 +209,29 @@ export function Bookings() {
       </div>
 
       <div className="px-4 mt-4">
-        <div className="flex bg-white/80 backdrop-blur-md rounded-xl p-1 border border-white/30">
-          <button onClick={() => setActiveTab("active")} className={`flex-1 py-2.5 rounded-lg text-sm font-medium transition-colors ${activeTab === "active" ? "bg-[#1E3A8A] text-white" : "text-gray-600"}`}>{isProvider ? "Requests" : "Active"}</button>
-          <button onClick={() => setActiveTab("completed")} className={`flex-1 py-2.5 rounded-lg text-sm font-medium transition-colors ${activeTab === "completed" ? "bg-[#1E3A8A] text-white" : "text-gray-600"}`}>History</button>
-        </div>
+        {isProvider ? (
+          <div className="flex bg-white/80 backdrop-blur-md rounded-xl p-1 border border-white/30">
+            <button onClick={() => setActiveTab("active")} className={`flex-1 py-2.5 rounded-lg text-sm font-medium transition-colors ${activeTab === "active" ? "bg-[#1E3A8A] text-white" : "text-gray-600"}`}>Requests</button>
+            <button onClick={() => setActiveTab("completed")} className={`flex-1 py-2.5 rounded-lg text-sm font-medium transition-colors ${activeTab === "completed" ? "bg-[#1E3A8A] text-white" : "text-gray-600"}`}>History</button>
+          </div>
+        ) : (
+          <div className="flex bg-white/80 backdrop-blur-md rounded-xl p-1 border border-white/30">
+            <button onClick={() => setActiveTab("active")} className={`flex-1 py-2.5 rounded-lg text-sm font-medium transition-colors ${activeTab === "active" ? "bg-[#1E3A8A] text-white" : "text-gray-600"}`}>Active</button>
+            <button onClick={() => setActiveTab("completed")} className={`flex-1 py-2.5 rounded-lg text-sm font-medium transition-colors ${activeTab === "completed" ? "bg-[#1E3A8A] text-white" : "text-gray-600"}`}>History</button>
+            <button onClick={() => setActiveTab("escrow")} className={`flex-1 py-2.5 rounded-lg text-sm font-medium transition-colors ${activeTab === "escrow" ? "bg-[#1E3A8A] text-white" : "text-gray-600"}`}>
+              <span className="flex items-center justify-center gap-1">
+                <Shield className="w-3 h-3" />Escrow
+              </span>
+            </button>
+          </div>
+        )}
       </div>
 
       <div className="px-4 mt-4 space-y-3">
         {filteredBookings.length === 0 ? (
           <div className="bg-white/80 backdrop-blur-md rounded-xl p-8 text-center border border-white/30">
             <Calendar className="w-10 h-10 text-gray-300 mx-auto mb-3" />
-            <p className="text-gray-500 text-sm">{activeTab === "active" ? isProvider ? "No pending requests" : "No active bookings" : "No booking history yet"}</p>
+            <p className="text-gray-500 text-sm">{activeTab === "active" ? isProvider ? "No pending requests" : "No active bookings" : activeTab === "escrow" ? "No escrow funds held" : "No booking history yet"}</p>
             {!isProvider && activeTab === "active" && <button onClick={() => navigate("/home/services")} className="mt-4 bg-[#1E3A8A] text-white px-6 py-2 rounded-xl text-sm">Browse Services</button>}
           </div>
         ) : filteredBookings.map((booking) => {
@@ -366,6 +380,29 @@ export function Bookings() {
                     <div className="flex justify-between"><span className="text-gray-400">Total</span><span>{formatAmount(booking)}</span></div>
                     <div className="flex justify-between"><span className="text-gray-400">Deposit paid</span><span>{formatDeposit(booking)}</span></div>
                     <div className="flex justify-between"><span className="text-gray-400">Payment method</span><span className="capitalize">{booking.payment_method}</span></div>
+                    {activeTab === "escrow" && booking.deposit_held && (
+                      <>
+                        <div className="pt-2 border-t border-gray-200 mt-2">
+                          <p className="text-gray-400 font-medium mb-2 flex items-center gap-1">
+                            <Shield className="w-3 h-3" />Escrow Details
+                          </p>
+                          <div className="space-y-1 text-gray-600">
+                            <div className="flex justify-between">
+                              <span className="text-gray-400">Status</span>
+                              <span className="font-medium text-blue-600">{booking.escrow_released ? "Released" : "Held"}</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-gray-400">Amount Secured</span>
+                              <span className="font-medium">{formatDeposit(booking)}</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-gray-400">Will Release On</span>
+                              <span>{booking.status === "completed" ? "Released" : "Service completion"}</span>
+                            </div>
+                          </div>
+                        </div>
+                      </>
+                    )}
                     {booking.description && (
                       <div className="pt-1 border-t border-gray-200">
                         <p className="text-gray-400 mb-1">Notes</p>
@@ -383,6 +420,30 @@ export function Bookings() {
           );
         })}
       </div>
+
+      {/* Escrow Details Summary */}
+      {!isProvider && activeTab === "escrow" && bookings.length > 0 && (
+        <div className="px-4 mt-6 bg-white/80 backdrop-blur-md rounded-xl p-4 border border-white/30 space-y-3">
+          <h3 className="text-sm font-semibold text-gray-800 flex items-center gap-2">
+            <Shield className="w-4 h-4 text-blue-600" />Escrow Summary
+          </h3>
+          <div className="grid grid-cols-2 gap-3 text-xs">
+            <div className="bg-blue-50 rounded-lg p-2">
+              <p className="text-gray-500 mb-1">Total Held</p>
+              <p className="font-bold text-blue-600">
+                £{(escrowBookings.reduce((sum, b) => sum + (b.deposit_pence || 0), 0) / 100).toFixed(2)}
+              </p>
+            </div>
+            <div className="bg-green-50 rounded-lg p-2">
+              <p className="text-gray-500 mb-1">Bookings in Escrow</p>
+              <p className="font-bold text-green-600">{escrowBookings.length}</p>
+            </div>
+          </div>
+          <p className="text-xs text-gray-500 border-t border-gray-200 pt-3">
+            💡 Escrow funds are held securely and released to providers only after you confirm service completion.
+          </p>
+        </div>
+      )}
     </div>
   );
 }
