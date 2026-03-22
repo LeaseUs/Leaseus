@@ -164,7 +164,7 @@ export function Bookings() {
       alert("Client location is unavailable. Cannot open navigation.");
       return;
     }
-    const url = `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}&travelmode=driving`;
+    const url = `https://www.mapbox.com/directions/?destination=${lat},${lng}&profile=driving`;
     window.open(url, "_blank");
   };
 
