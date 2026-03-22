@@ -27,6 +27,7 @@ export function Profile() {
   const [locationForm, setLocationForm] = useState({
     business_address: "", location_city: "", business_lat: "", business_lng: "",
   });
+  const [sharedLocationWithProvider, setSharedLocationWithProvider] = useState(false);
   const [detectingLocation, setDetectingLocation] = useState(false);
 
   const [kycStep, setKycStep]     = useState(1);
@@ -52,6 +53,22 @@ export function Profile() {
         business_lat:     data?.business_lat     ? String(data.business_lat) : "",
         business_lng:     data?.business_lng     ? String(data.business_lng) : "",
       });
+
+      let shareLocation = false;
+      if (data?.share_location_with_provider) shareLocation = true;
+      if (data?.preferences) {
+        try {
+          const prefs = typeof data.preferences === "string" ? JSON.parse(data.preferences) : data.preferences;
+          if (prefs?.share_location_with_provider) shareLocation = true;
+        } catch {}
+      }
+      if (data?.notification_preferences) {
+        try {
+          const prefs = typeof data.notification_preferences === "string" ? JSON.parse(data.notification_preferences) : data.notification_preferences;
+          if (prefs?.share_location_with_provider) shareLocation = true;
+        } catch {}
+      }
+      setSharedLocationWithProvider(shareLocation);
 
       // Load notification preferences from profile if available
       if (data?.notification_preferences) {
@@ -103,14 +120,24 @@ export function Profile() {
     setSaving(true); clearMessages();
     try {
       const { data: { user } } = await supabase.auth.getUser();
+      const existingPreferences = profile?.preferences && typeof profile.preferences === "object"
+        ? profile.preferences
+        : profile?.preferences ? JSON.parse(profile.preferences) : {};
+      const prefs = { ...existingPreferences, share_location_with_provider: sharedLocationWithProvider };
+
       const { error } = await supabase.from("profiles").update({
         business_address: locationForm.business_address,
         location_city:    locationForm.location_city,
         business_lat:     locationForm.business_lat ? parseFloat(locationForm.business_lat) : null,
         business_lng:     locationForm.business_lng ? parseFloat(locationForm.business_lng) : null,
+        share_location_with_provider: sharedLocationWithProvider,
+        preferences: prefs,
       }).eq("id", user!.id);
       if (error) throw error;
-      setSuccess("Location saved! You'll now appear on the map.");
+      setSuccess(isProvider
+        ? "Location saved! You'll now appear on the map."
+        : "Location saved! Providers can now navigate to your service location."
+      );
       fetchProfile();
       setTimeout(closeModal, 1800);
     } catch (err: any) { setError(err.message || "Failed to save location."); }
@@ -247,7 +274,7 @@ export function Profile() {
             <h2 className="text-lg text-gray-800 mb-1">{profile?.full_name || "User"}</h2>
             <p className="text-sm text-gray-500 mb-1">{profile?.email}</p>
             <p className="text-sm text-gray-500">{profile?.phone || "No phone added"}</p>
-            {isProvider && (profile?.business_address || profile?.location_city) && (
+            {(profile?.business_address || profile?.location_city) && (
               <div className="flex items-center gap-1 mt-1">
                 <MapPin className="w-3 h-3 text-[#10B981]" />
                 <span className="text-xs text-gray-500">{profile?.location_city || profile?.business_address}</span>
@@ -312,7 +339,7 @@ export function Profile() {
               { icon: User,     label: "Personal Information", action: () => openModal("edit"),     badge: null,                                                                    badgeColor: "" },
               { icon: Shield,   label: "Change Password",      action: () => openModal("password"), badge: "Security",                                                             badgeColor: "blue" },
               { icon: FileText, label: "KYC Verification",     action: () => openModal("kyc"),      badge: profile?.kyc_verified ? "Verified" : "Pending",                        badgeColor: profile?.kyc_verified ? "green" : "orange" },
-              ...(isProvider ? [{ icon: MapPin, label: "Business Location", action: () => openModal("location"), badge: (profile?.business_lat ? "Set" : "Not set"), badgeColor: profile?.business_lat ? "green" : "orange" }] : []),
+              ...(true ? [{ icon: MapPin, label: isProvider ? "Business Location" : "Service Location", action: () => openModal("location"), badge: (profile?.business_lat ? "Set" : "Not set"), badgeColor: profile?.business_lat ? "green" : "orange" }] : []),
             ].map((item, i, arr) => {
               const Icon = item.icon;
               return (
@@ -419,13 +446,18 @@ export function Profile() {
             {activeModal === "location" && (
               <>
                 <div className="flex items-center justify-between mb-6">
-                  <h2 className="text-lg font-semibold text-gray-800">Business Location</h2>
+                  <h2 className="text-lg font-semibold text-gray-800">{isProvider ? "Business Location" : "Service Location"}</h2>
                   <button onClick={closeModal}><X className="w-5 h-5 text-gray-500" /></button>
                 </div>
                 {error   && <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-xl text-red-600 text-sm">{error}</div>}
                 {success && <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-xl text-green-700 text-sm">{success}</div>}
 
-                <p className="text-sm text-gray-500 mb-4">Add your location so clients can find you on the map.</p>
+                <p className="text-sm text-gray-500 mb-4">
+                  {isProvider
+                    ? "Add your location so clients can find you on the map."
+                    : "Add your service location so providers can navigate to you for bookings."
+                  }
+                </p>
 
                 <div className="space-y-4">
                   <div>
@@ -466,10 +498,27 @@ export function Profile() {
                   </div>
                   <p className="text-xs text-gray-400">Or find coordinates at maps.google.com → right-click → "What's here?"</p>
 
+                  <label className="flex items-center gap-2 p-3 bg-blue-50 rounded-xl border border-blue-100">
+                    <input type="checkbox" checked={sharedLocationWithProvider}
+                      onChange={(e) => setSharedLocationWithProvider(e.target.checked)}
+                      className="h-4 w-4 text-[#1E3A8A] border-gray-300 rounded" />
+                    <span className="text-xs text-gray-700">
+                      {isProvider
+                        ? "Allow clients to access my location for navigation."
+                        : "Allow providers to access my location for navigation."
+                      }
+                    </span>
+                  </label>
+
                   {locationForm.business_lat && locationForm.business_lng && (
                     <div className="flex items-center gap-2 p-3 bg-green-50 rounded-xl border border-green-200">
                       <MapPin className="w-4 h-4 text-green-600 flex-shrink-0" />
-                      <p className="text-xs text-green-700">Location set — you'll appear on the client map once saved.</p>
+                      <p className="text-xs text-green-700">
+                        {isProvider
+                          ? "Location set — you'll appear on the client map once saved."
+                          : "Location set — providers can navigate to your service location once saved."
+                        }
+                      </p>
                     </div>
                   )}
 

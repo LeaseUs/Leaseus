@@ -185,16 +185,32 @@ export function ServiceDetail() {
       {/* Service Info */}
       <div className="px-4 py-4 bg-white/80 backdrop-blur-md border border-white/30">
         <h1 className="text-2xl text-gray-800 mb-2">{service.title}</h1>
-        <p className="text-base text-gray-600 mb-3">{service.provider_name}</p>
-        <div className="flex items-center gap-4 mb-4">
-          <div className="flex items-center gap-1">
-            <Star className="w-5 h-5 fill-yellow-400 text-yellow-400" />
-            <span className="text-sm text-gray-800">{service.avg_rating > 0 ? service.avg_rating.toFixed(1) : "New"}</span>
-            {service.total_reviews > 0 && <span className="text-sm text-gray-500">({service.total_reviews} reviews)</span>}
+        <button
+          onClick={() => service.provider_id && navigate(`/home/provider/${service.provider_id}`)}
+          className="text-base text-[#1E3A8A] hover:text-[#152d6b] transition-colors text-left mb-3"
+        >
+          {service.provider_name}
+        </button>
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-1">
+              <Star className="w-5 h-5 fill-yellow-400 text-yellow-400" />
+              <span className="text-sm text-gray-800">{service.avg_rating > 0 ? service.avg_rating.toFixed(1) : "New"}</span>
+              {service.total_reviews > 0 && <span className="text-sm text-gray-500">({service.total_reviews} reviews)</span>}
+            </div>
+            <div className="flex items-center gap-1 text-sm text-gray-600">
+              <MapPin className="w-4 h-4" />{service.is_remote ? "Remote" : service.location_city || "UK"}
+            </div>
           </div>
-          <div className="flex items-center gap-1 text-sm text-gray-600">
-            <MapPin className="w-4 h-4" />{service.is_remote ? "Remote" : service.location_city || "UK"}
-          </div>
+          {service.total_reviews > 0 && (
+            <button
+              onClick={() => navigate(`/home/reviews?provider=${service.provider_id}`)}
+              className="bg-[#1E3A8A]/10 text-[#1E3A8A] px-3 py-1.5 rounded-lg text-sm hover:bg-[#1E3A8A]/20 transition-colors flex items-center gap-1"
+            >
+              <MessageCircle className="w-4 h-4" />
+              View Reviews
+            </button>
+          )}
         </div>
         <div className="flex items-center gap-2 text-sm text-gray-600">
           <Clock className="w-4 h-4" /><span>{service.availability}</span>

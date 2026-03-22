@@ -13,10 +13,13 @@ import { ProviderNavigation } from "./pages/ProviderNavigation";
 import { Subscriptions } from "./pages/Subscriptions";
 import { Loyalty } from "./pages/Loyalty";
 import { Profile } from "./pages/Profile";
+import { Reviews } from "./pages/Reviews";
 import { PartnerRegister } from "./pages/PartnerRegister";
 import { AdminPartners } from "./pages/AdminPartners";
 import { Splash } from "./pages/Splash";
 import { Welcome } from "./pages/Welcome";
+import { ProviderProfile } from "./pages/ProviderProfile";
+import { Providers } from "./pages/Providers";
 import { Layout } from "./components/Layout";
 import { AuthGuard } from "./components/AuthGuard";
 import { InitialRedirect } from "./components/InitialRedirect";
@@ -63,6 +66,8 @@ export const router = createBrowserRouter([
           { path: "mintleaf", Component: MintLeaf },
           { path: "services", Component: Services },
           { path: "service/:id", Component: ServiceDetail },
+          { path: "provider/:id", Component: ProviderProfile },
+          { path: "providers", Component: Providers },
           { path: "bookings", Component: Bookings },
           { path: "navigation/:id", Component: ProviderNavigation },
           { path: "messages", Component: Messages },
@@ -70,6 +75,7 @@ export const router = createBrowserRouter([
           { path: "subscriptions", Component: Subscriptions },
           { path: "loyalty", Component: Loyalty },
           { path: "profile", Component: Profile },
+          { path: "reviews", Component: Reviews },
         ],
       },
     ],

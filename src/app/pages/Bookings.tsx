@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router";
 import {
   Calendar, Clock, CheckCircle, XCircle, AlertCircle,
-  Loader2, Star, MessageCircle, RefreshCw, ChevronDown, ChevronUp, Shield, X,
+  Loader2, Star, MessageCircle, RefreshCw, ChevronDown, ChevronUp, Shield, X, MapPin,
 } from "lucide-react";
 import { supabase } from "../../lib/supabase";
 
@@ -29,7 +29,6 @@ export function Bookings() {
   const [actionLoading, setActionLoading]   = useState<string | null>(null);
   const [expandedId, setExpandedId]         = useState<string | null>(null);
   const [showReviewId, setShowReviewId]     = useState<string | null>(null);
-  const [showEscrowModal, setShowEscrowModal] = useState(false);
   const [reviewRating, setReviewRating]     = useState(5);
   const [reviewBody, setReviewBody]         = useState("");
   const [submittingReview, setSubmittingReview] = useState(false);
@@ -55,11 +54,13 @@ export function Bookings() {
         escrow_held, escrow_released,
         reschedule_date, reschedule_time, reschedule_status,
         client_id, provider_id,
-        client:profiles!client_id(id, full_name, avatar_url, business_lat, business_lng),
+        client:profiles!client_id(id, full_name, avatar_url, business_lat, business_lng, preferences),
         provider:profiles!provider_id(id, full_name, avatar_url),
         listings(id, title, listing_images(url, is_primary))
       `).order("created_at", { ascending: false });
-      query = isProvider ? query.eq("provider_id", user.id).in("status", ["pending", "confirmed", "in_progress"]) : query.eq("client_id", user.id);
+      query = isProvider
+        ? query.eq("provider_id", user.id).in("status", ["pending", "confirmed", "in_progress"])
+        : query.eq("client_id", user.id);
       const { data: bookingData, error } = await query;
       if (error) console.error("Bookings fetch error:", error.message);
       setBookings(bookingData || []);
@@ -71,12 +72,12 @@ export function Bookings() {
     try {
       const { data: existing } = await supabase.from("conversations").select("id")
         .eq("client_id", booking.client_id).eq("provider_id", booking.provider_id).maybeSingle();
-      if (existing) { navigate(`/home/conversation/${existing.id}`); return; }
+      if (existing) { navigate(`/home/messages/${existing.id}`); return; }
       const { data: newConv, error } = await supabase.from("conversations")
         .insert({ client_id: booking.client_id, provider_id: booking.provider_id, last_message_at: new Date().toISOString() })
         .select("id").single();
       if (error) throw error;
-      navigate(`/home/conversation/${newConv.id}`);
+      navigate(`/home/messages/${newConv.id}`);
     } catch (err) { console.error(err); }
   };
 
@@ -125,7 +126,7 @@ export function Bookings() {
   };
 
   const handleClientCancel = async (bookingId: string) => {
-    if (!window.confirm("A 10% cancellation fee applies. 40% of your deposit will be refunded. Continue?")) return;
+    if (!window.confirm("A 10% cancellation fee applies. 80% of your deposit will be refunded. Continue?")) return;
     setActionLoading(bookingId);
     try {
       const booking = bookings.find(b => b.id === bookingId);
@@ -162,6 +163,25 @@ export function Bookings() {
       alert("Invalid booking. Cannot start navigation.");
       return;
     }
+
+    const clientPreferences = booking.client?.preferences;
+    const sharePref = booking.client?.share_location_with_provider
+      || (clientPreferences ?
+        (typeof clientPreferences === "string"
+          ? JSON.parse(clientPreferences)?.share_location_with_provider
+          : clientPreferences?.share_location_with_provider)
+        : false);
+
+    if (!sharePref) {
+      alert("Client has not enabled location sharing. Ask the client to enable it in their profile location settings.");
+      return;
+    }
+
+    if (!booking.client?.business_lat || !booking.client?.business_lng) {
+      alert("Client coordinates are not set. Ask the client to update their profile location.");
+      return;
+    }
+
     navigate(`/home/navigation/${booking.id}`);
   };
 
@@ -187,35 +207,68 @@ export function Bookings() {
   const activeStatuses    = ["pending", "confirmed", "in_progress"];
   const completedStatuses = ["completed", "cancelled", "disputed"];
   const escrowBookings    = bookings.filter(b => b.deposit_held && !completedStatuses.includes(b.status));
-  const filteredBookings  = activeTab === "escrow" ? escrowBookings : bookings.filter(b => activeTab === "active" ? activeStatuses.includes(b.status) : completedStatuses.includes(b.status));
-  const formatDate        = (d: string) => new Date(d).toLocaleDateString("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
-  const formatAmount      = (b: any) => b.payment_method === "fiat" ? `£${((b.amount_pence || 0) / 100).toFixed(2)}` : `<span className="leus">ᛃ</span>${Number(b.amount_leus || 0).toFixed(2)}`;
-  const formatDeposit     = (b: any) => b.payment_method === "fiat" ? `£${((b.deposit_pence || 0) / 100).toFixed(2)}` : `<span className="leus">ᛃ</span>${Number(b.deposit_leus || 0).toFixed(2)}`;
+  const filteredBookings  = activeTab === "escrow"
+    ? escrowBookings
+    : bookings.filter(b => activeTab === "active"
+      ? activeStatuses.includes(b.status)
+      : completedStatuses.includes(b.status));
 
-  if (loading) return <div className="min-h-screen flex items-center justify-center"><Loader2 className="w-8 h-8 animate-spin text-[#1E3A8A]" /></div>;
+  const formatDate    = (d: string) => new Date(d).toLocaleDateString("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
+  const formatAmount  = (b: any) => b.payment_method === "fiat"
+    ? `£${((b.amount_pence || 0) / 100).toFixed(2)}`
+    : `ᛃ${Number(b.amount_leus || 0).toFixed(2)}`;
+  const formatDeposit = (b: any) => b.payment_method === "fiat"
+    ? `£${((b.deposit_pence || 0) / 100).toFixed(2)}`
+    : `ᛃ${Number(b.deposit_leus || 0).toFixed(2)}`;
+
+  if (loading) return (
+    <div className="min-h-screen flex items-center justify-center">
+      <Loader2 className="w-8 h-8 animate-spin text-[#1E3A8A]" />
+    </div>
+  );
 
   return (
     <div className="min-h-screen pb-6">
+      {/* Header */}
       <div className="bg-[#1E3A8A]/80 backdrop-blur-lg px-4 pt-6 pb-6 rounded-b-3xl">
         <h1 className="text-xl text-white mb-1">{isProvider ? "Booking Requests" : "My Bookings"}</h1>
         <p className="text-white/70 text-sm">{isProvider ? "Manage incoming service requests" : "Track your bookings"}</p>
         <div className="flex gap-3 mt-4">
           {isProvider ? (
             <>
-              <div className="flex-1 bg-white/20 rounded-xl p-3 text-center"><p className="text-white text-lg font-bold">{bookings.filter(b => b.status === "pending").length}</p><p className="text-white/70 text-xs">Pending</p></div>
-              <div className="flex-1 bg-white/20 rounded-xl p-3 text-center"><p className="text-white text-lg font-bold">{bookings.filter(b => ["confirmed","in_progress"].includes(b.status)).length}</p><p className="text-white/70 text-xs">Active</p></div>
-              <div className="flex-1 bg-white/20 rounded-xl p-3 text-center"><p className="text-white text-lg font-bold">{bookings.filter(b => b.status === "completed").length}</p><p className="text-white/70 text-xs">Completed</p></div>
+              <div className="flex-1 bg-white/20 rounded-xl p-3 text-center">
+                <p className="text-white text-lg font-bold">{bookings.filter(b => b.status === "pending").length}</p>
+                <p className="text-white/70 text-xs">Pending</p>
+              </div>
+              <div className="flex-1 bg-white/20 rounded-xl p-3 text-center">
+                <p className="text-white text-lg font-bold">{bookings.filter(b => ["confirmed","in_progress"].includes(b.status)).length}</p>
+                <p className="text-white/70 text-xs">Active</p>
+              </div>
+              <div className="flex-1 bg-white/20 rounded-xl p-3 text-center">
+                <p className="text-white text-lg font-bold">{bookings.filter(b => b.status === "completed").length}</p>
+                <p className="text-white/70 text-xs">Completed</p>
+              </div>
             </>
           ) : (
             <>
-              <div className="flex-1 bg-white/20 rounded-xl p-3 text-center"><p className="text-white text-lg font-bold">{bookings.filter(b => activeStatuses.includes(b.status)).length}</p><p className="text-white/70 text-xs">Active</p></div>
-              <div className="flex-1 bg-white/20 rounded-xl p-3 text-center"><p className="text-white text-lg font-bold">{bookings.filter(b => b.status === "completed").length}</p><p className="text-white/70 text-xs">Completed</p></div>
-              <div className="flex-1 bg-white/20 rounded-xl p-3 text-center"><p className="text-white text-lg font-bold">{bookings.filter(b => b.deposit_held).length}</p><p className="text-white/70 text-xs">In Escrow</p></div>
+              <div className="flex-1 bg-white/20 rounded-xl p-3 text-center">
+                <p className="text-white text-lg font-bold">{bookings.filter(b => activeStatuses.includes(b.status)).length}</p>
+                <p className="text-white/70 text-xs">Active</p>
+              </div>
+              <div className="flex-1 bg-white/20 rounded-xl p-3 text-center">
+                <p className="text-white text-lg font-bold">{bookings.filter(b => b.status === "completed").length}</p>
+                <p className="text-white/70 text-xs">Completed</p>
+              </div>
+              <div className="flex-1 bg-white/20 rounded-xl p-3 text-center">
+                <p className="text-white text-lg font-bold">{bookings.filter(b => b.deposit_held).length}</p>
+                <p className="text-white/70 text-xs">In Escrow</p>
+              </div>
             </>
           )}
         </div>
       </div>
 
+      {/* Tabs */}
       <div className="px-4 mt-4">
         {isProvider ? (
           <div className="flex bg-white/80 backdrop-blur-md rounded-xl p-1 border border-white/30">
@@ -227,20 +280,25 @@ export function Bookings() {
             <button onClick={() => setActiveTab("active")} className={`flex-1 py-2.5 rounded-lg text-sm font-medium transition-colors ${activeTab === "active" ? "bg-[#1E3A8A] text-white" : "text-gray-600"}`}>Active</button>
             <button onClick={() => setActiveTab("completed")} className={`flex-1 py-2.5 rounded-lg text-sm font-medium transition-colors ${activeTab === "completed" ? "bg-[#1E3A8A] text-white" : "text-gray-600"}`}>History</button>
             <button onClick={() => setActiveTab("escrow")} className={`flex-1 py-2.5 rounded-lg text-sm font-medium transition-colors ${activeTab === "escrow" ? "bg-[#1E3A8A] text-white" : "text-gray-600"}`}>
-              <span className="flex items-center justify-center gap-1">
-                <Shield className="w-3 h-3" />Escrow
-              </span>
+              <span className="flex items-center justify-center gap-1"><Shield className="w-3 h-3" />Escrow</span>
             </button>
           </div>
         )}
       </div>
 
+      {/* Bookings List */}
       <div className="px-4 mt-4 space-y-3">
         {filteredBookings.length === 0 ? (
           <div className="bg-white/80 backdrop-blur-md rounded-xl p-8 text-center border border-white/30">
             <Calendar className="w-10 h-10 text-gray-300 mx-auto mb-3" />
-            <p className="text-gray-500 text-sm">{activeTab === "active" ? isProvider ? "No pending requests" : "No active bookings" : activeTab === "escrow" ? "No escrow funds held" : "No booking history yet"}</p>
-            {!isProvider && activeTab === "active" && <button onClick={() => navigate("/home/services")} className="mt-4 bg-[#1E3A8A] text-white px-6 py-2 rounded-xl text-sm">Browse Services</button>}
+            <p className="text-gray-500 text-sm">
+              {activeTab === "active" ? isProvider ? "No pending requests" : "No active bookings"
+                : activeTab === "escrow" ? "No escrow funds held"
+                : "No booking history yet"}
+            </p>
+            {!isProvider && activeTab === "active" && (
+              <button onClick={() => navigate("/home/services")} className="mt-4 bg-[#1E3A8A] text-white px-6 py-2 rounded-xl text-sm">Browse Services</button>
+            )}
           </div>
         ) : filteredBookings.map((booking) => {
           const StatusIcon = STATUS_ICONS[booking.status] || AlertCircle;
@@ -253,17 +311,29 @@ export function Bookings() {
                 <div className="flex items-start justify-between mb-2">
                   <div className="flex-1">
                     <h3 className="text-sm font-semibold text-gray-800">{booking.title}</h3>
-                    <p className="text-xs text-gray-500 mt-0.5">{isProvider ? `Client: ${booking.client?.full_name || "Unknown"}` : `Provider: ${booking.provider?.full_name || "Unknown"}`}</p>
+                    <p className="text-xs text-gray-500 mt-0.5">
+                      {isProvider ? `Client: ${booking.client?.full_name || "Unknown"}` : `Provider: ${booking.provider?.full_name || "Unknown"}`}
+                    </p>
                   </div>
                   <div className="flex flex-col items-end gap-1">
-                    <span className={`text-xs px-2 py-1 rounded-full ${STATUS_COLORS[booking.status]}`}>{booking.status.replace("_", " ")}</span>
+                    <span className={`text-xs px-2 py-1 rounded-full ${STATUS_COLORS[booking.status]}`}>
+                      {booking.status.replace("_", " ")}
+                    </span>
                     <span className="text-sm font-semibold text-[#1E3A8A]">{formatAmount(booking)}</span>
                   </div>
                 </div>
+
                 <div className="flex items-center gap-4 text-xs text-gray-500 mb-2">
-                  <div className="flex items-center gap-1"><Clock className="w-3 h-3" />{booking.scheduled_at ? formatDate(booking.scheduled_at) : "TBD"}</div>
-                  <div className="flex items-center gap-1"><StatusIcon className="w-3 h-3" />{booking.payment_method === "leus" ? "LEUS" : "GBP"}</div>
+                  <div className="flex items-center gap-1">
+                    <Clock className="w-3 h-3" />
+                    {booking.scheduled_at ? formatDate(booking.scheduled_at) : "TBD"}
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <StatusIcon className="w-3 h-3" />
+                    {booking.payment_method === "leus" ? "LEUS" : "GBP"}
+                  </div>
                 </div>
+
                 {booking.deposit_held && booking.status !== "cancelled" && (
                   <div className="flex items-center gap-1 text-xs text-blue-600 bg-blue-50 px-2 py-1 rounded-lg w-fit mb-2">
                     <CheckCircle className="w-3 h-3" />Deposit held: {formatDeposit(booking)}
@@ -276,7 +346,8 @@ export function Bookings() {
                 )}
                 {booking.status === "cancelled" && booking.cancelled_by && (
                   <div className="flex items-center gap-1 text-xs text-red-600 bg-red-50 px-2 py-1 rounded-lg w-fit mb-2">
-                    <XCircle className="w-3 h-3" />Cancelled by {booking.cancelled_by}{booking.cancellation_fee_pence > 0 && ` · fee: £${(booking.cancellation_fee_pence / 100).toFixed(2)}`}
+                    <XCircle className="w-3 h-3" />Cancelled by {booking.cancelled_by}
+                    {booking.cancellation_fee_pence > 0 && ` · fee: £${(booking.cancellation_fee_pence / 100).toFixed(2)}`}
                   </div>
                 )}
               </div>
@@ -285,13 +356,16 @@ export function Bookings() {
                 {/* Provider: pending */}
                 {isProvider && booking.status === "pending" && (
                   <div className="flex gap-2">
-                    <button onClick={() => handleAccept(booking.id)} disabled={isLoading} className="flex-1 bg-[#10B981] text-white py-2.5 rounded-xl text-sm flex items-center justify-center gap-1 disabled:opacity-70">
+                    <button onClick={() => handleAccept(booking.id)} disabled={isLoading}
+                      className="flex-1 bg-[#10B981] text-white py-2.5 rounded-xl text-sm flex items-center justify-center gap-1 disabled:opacity-70">
                       {isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle className="w-4 h-4" />}Accept
                     </button>
-                    <button onClick={() => handleOpenChat(booking)} className="p-2.5 border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors" title="Message client">
+                    <button onClick={() => handleOpenChat(booking)}
+                      className="p-2.5 border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors">
                       <MessageCircle className="w-4 h-4 text-[#1E3A8A]" />
                     </button>
-                    <button onClick={() => handleDecline(booking.id)} disabled={isLoading} className="flex-1 border border-red-300 text-red-500 py-2.5 rounded-xl text-sm flex items-center justify-center gap-1 disabled:opacity-70">
+                    <button onClick={() => handleDecline(booking.id)} disabled={isLoading}
+                      className="flex-1 border border-red-300 text-red-500 py-2.5 rounded-xl text-sm flex items-center justify-center gap-1 disabled:opacity-70">
                       {isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <XCircle className="w-4 h-4" />}Decline
                     </button>
                   </div>
@@ -300,16 +374,20 @@ export function Bookings() {
                 {/* Provider: confirmed */}
                 {isProvider && booking.status === "confirmed" && (
                   <div className="flex gap-2">
-                    <button onClick={() => handleProviderNavigate(booking)} className="flex-1 bg-[#10B981] text-white py-2.5 rounded-xl text-sm flex items-center justify-center gap-1 hover:bg-[#0f8f69] transition-colors">
+                    <button onClick={() => handleProviderNavigate(booking)}
+                      className="flex-1 bg-[#10B981] text-white py-2.5 rounded-xl text-sm flex items-center justify-center gap-1 hover:bg-[#0f8f69] transition-colors">
                       <MapPin className="w-4 h-4" />Navigate
                     </button>
-                    <button onClick={() => handleComplete(booking.id)} disabled={isLoading} className="flex-1 bg-[#1E3A8A] text-white py-2.5 rounded-xl text-sm flex items-center justify-center gap-1 disabled:opacity-70">
-                      {isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle className="w-4 h-4" />}Mark Complete
+                    <button onClick={() => handleComplete(booking.id)} disabled={isLoading}
+                      className="flex-1 bg-[#1E3A8A] text-white py-2.5 rounded-xl text-sm flex items-center justify-center gap-1 disabled:opacity-70">
+                      {isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle className="w-4 h-4" />}Complete
                     </button>
-                    <button onClick={() => handleOpenChat(booking)} className="p-2.5 border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors" title="Message client">
+                    <button onClick={() => handleOpenChat(booking)}
+                      className="p-2.5 border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors">
                       <MessageCircle className="w-4 h-4 text-[#1E3A8A]" />
                     </button>
-                    <button onClick={() => handleProviderCancel(booking.id)} disabled={isLoading} className="p-2.5 border border-red-200 rounded-xl hover:bg-red-50 transition-colors" title="Cancel booking">
+                    <button onClick={() => handleProviderCancel(booking.id)} disabled={isLoading}
+                      className="p-2.5 border border-red-200 rounded-xl hover:bg-red-50 transition-colors">
                       <XCircle className="w-4 h-4 text-red-400" />
                     </button>
                   </div>
@@ -320,10 +398,12 @@ export function Bookings() {
                   <div className="space-y-2">
                     <p className="text-xs text-gray-400 text-center">Waiting for provider to confirm</p>
                     <div className="flex gap-2">
-                      <button onClick={() => handleOpenChat(booking)} className="flex-1 border border-[#1E3A8A] text-[#1E3A8A] py-2.5 rounded-xl text-sm flex items-center justify-center gap-1 hover:bg-blue-50 transition-colors">
+                      <button onClick={() => handleOpenChat(booking)}
+                        className="flex-1 border border-[#1E3A8A] text-[#1E3A8A] py-2.5 rounded-xl text-sm flex items-center justify-center gap-1 hover:bg-blue-50 transition-colors">
                         <MessageCircle className="w-4 h-4" />Message Provider
                       </button>
-                      <button onClick={() => handleClientCancel(booking.id)} disabled={isLoading} className="flex-1 border border-red-300 text-red-500 py-2.5 rounded-xl text-sm flex items-center justify-center gap-1 disabled:opacity-70">
+                      <button onClick={() => handleClientCancel(booking.id)} disabled={isLoading}
+                        className="flex-1 border border-red-300 text-red-500 py-2.5 rounded-xl text-sm flex items-center justify-center gap-1 disabled:opacity-70">
                         {isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <XCircle className="w-4 h-4" />}Cancel
                       </button>
                     </div>
@@ -333,13 +413,16 @@ export function Bookings() {
                 {/* Client: confirmed */}
                 {!isProvider && booking.status === "confirmed" && (
                   <div className="flex gap-2">
-                    <button onClick={() => handleComplete(booking.id)} disabled={isLoading} className="flex-1 bg-[#10B981] text-white py-2.5 rounded-xl text-sm flex items-center justify-center gap-1 disabled:opacity-70">
+                    <button onClick={() => handleComplete(booking.id)} disabled={isLoading}
+                      className="flex-1 bg-[#10B981] text-white py-2.5 rounded-xl text-sm flex items-center justify-center gap-1 disabled:opacity-70">
                       {isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle className="w-4 h-4" />}Confirm Complete
                     </button>
-                    <button onClick={() => handleOpenChat(booking)} className="p-2.5 border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors">
+                    <button onClick={() => handleOpenChat(booking)}
+                      className="p-2.5 border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors">
                       <MessageCircle className="w-4 h-4 text-[#1E3A8A]" />
                     </button>
-                    <button onClick={() => handleClientCancel(booking.id)} disabled={isLoading} className="p-2.5 border border-red-200 rounded-xl hover:bg-red-50 transition-colors">
+                    <button onClick={() => handleClientCancel(booking.id)} disabled={isLoading}
+                      className="p-2.5 border border-red-200 rounded-xl hover:bg-red-50 transition-colors">
                       <XCircle className="w-4 h-4 text-red-400" />
                     </button>
                   </div>
@@ -361,7 +444,8 @@ export function Bookings() {
                             </button>
                           ))}
                         </div>
-                        <textarea value={reviewBody} onChange={e => setReviewBody(e.target.value)} placeholder="Share your experience..." rows={3}
+                        <textarea value={reviewBody} onChange={e => setReviewBody(e.target.value)}
+                          placeholder="Share your experience..." rows={3}
                           className="w-full px-3 py-2 bg-white rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#10B981] resize-none" />
                         <button onClick={() => handleSubmitReview(booking)} disabled={submittingReview}
                           className="w-full bg-[#1E3A8A] text-white py-2.5 rounded-xl text-sm flex items-center justify-center gap-2 disabled:opacity-70">
@@ -377,7 +461,7 @@ export function Bookings() {
                   </div>
                 )}
 
-                {/* View Details — all statuses */}
+                {/* View Details */}
                 <button onClick={() => setExpandedId(isExpanded ? null : booking.id)}
                   className="w-full flex items-center justify-center gap-2 text-gray-500 text-sm py-1 hover:text-gray-700 transition-colors">
                   {isExpanded ? <><ChevronUp className="w-4 h-4" />Hide Details</> : <><ChevronDown className="w-4 h-4" />View Details</>}
@@ -390,29 +474,18 @@ export function Bookings() {
                     <div className="flex justify-between"><span className="text-gray-400">Scheduled</span><span>{booking.scheduled_at ? formatDate(booking.scheduled_at) : "TBD"}</span></div>
                     <div className="flex justify-between"><span className="text-gray-400">Total</span><span>{formatAmount(booking)}</span></div>
                     <div className="flex justify-between"><span className="text-gray-400">Deposit paid</span><span>{formatDeposit(booking)}</span></div>
-                    <div className="flex justify-between"><span className="text-gray-400">Payment method</span><span className="capitalize">{booking.payment_method}</span></div>
+                    <div className="flex justify-between"><span className="text-gray-400">Payment</span><span className="capitalize">{booking.payment_method}</span></div>
                     {activeTab === "escrow" && booking.deposit_held && (
-                      <>
-                        <div className="pt-2 border-t border-gray-200 mt-2">
-                          <p className="text-gray-400 font-medium mb-2 flex items-center gap-1">
-                            <Shield className="w-3 h-3" />Escrow Details
-                          </p>
-                          <div className="space-y-1 text-gray-600">
-                            <div className="flex justify-between">
-                              <span className="text-gray-400">Status</span>
-                              <span className="font-medium text-blue-600">{booking.escrow_released ? "Released" : "Held"}</span>
-                            </div>
-                            <div className="flex justify-between">
-                              <span className="text-gray-400">Amount Secured</span>
-                              <span className="font-medium">{formatDeposit(booking)}</span>
-                            </div>
-                            <div className="flex justify-between">
-                              <span className="text-gray-400">Will Release On</span>
-                              <span>{booking.status === "completed" ? "Released" : "Service completion"}</span>
-                            </div>
-                          </div>
+                      <div className="pt-2 border-t border-gray-200">
+                        <p className="text-gray-400 font-medium mb-2 flex items-center gap-1">
+                          <Shield className="w-3 h-3" />Escrow Details
+                        </p>
+                        <div className="space-y-1">
+                          <div className="flex justify-between"><span className="text-gray-400">Status</span><span className="font-medium text-blue-600">{booking.escrow_released ? "Released" : "Held"}</span></div>
+                          <div className="flex justify-between"><span className="text-gray-400">Amount Secured</span><span className="font-medium">{formatDeposit(booking)}</span></div>
+                          <div className="flex justify-between"><span className="text-gray-400">Releases On</span><span>{booking.status === "completed" ? "Released" : "Service completion"}</span></div>
                         </div>
-                      </>
+                      </div>
                     )}
                     {booking.description && (
                       <div className="pt-1 border-t border-gray-200">
@@ -432,35 +505,27 @@ export function Bookings() {
         })}
       </div>
 
-      {/* Escrow Details Summary */}
-      {!isProvider && activeTab === "escrow" && bookings.length > 0 && (
-        <div className="px-4 mt-6 bg-white/80 backdrop-blur-md rounded-xl p-4 border border-white/30 space-y-3">
+      {/* Escrow Summary */}
+      {!isProvider && activeTab === "escrow" && escrowBookings.length > 0 && (
+        <div className="mx-4 mt-6 bg-white/80 backdrop-blur-md rounded-xl p-4 border border-white/30 space-y-3">
           <h3 className="text-sm font-semibold text-gray-800 flex items-center gap-2">
             <Shield className="w-4 h-4 text-blue-600" />Escrow Summary
           </h3>
           <div className="grid grid-cols-2 gap-3 text-xs">
-            <div className="bg-blue-50 rounded-lg p-2">
+            <div className="bg-blue-50 rounded-lg p-3">
               <p className="text-gray-500 mb-1">Total Held</p>
-              <p className="font-bold text-blue-600">
-                £{(escrowBookings.reduce((sum, b) => sum + (b.deposit_pence || 0), 0) / 100).toFixed(2)}
-              </p>
+              <p className="font-bold text-blue-600">£{(escrowBookings.reduce((sum, b) => sum + (b.deposit_pence || 0), 0) / 100).toFixed(2)}</p>
             </div>
-            <div className="bg-green-50 rounded-lg p-2">
-              <p className="text-gray-500 mb-1">Bookings in Escrow</p>
-              <p className="font-bold text-green-600">{escrowBookings.length}</p>
+            <div className="bg-green-50 rounded-lg p-3">
+              <p className="text-gray-500 mb-1">In Escrow</p>
+              <p className="font-bold text-green-600">{escrowBookings.length} booking{escrowBookings.length !== 1 ? "s" : ""}</p>
             </div>
           </div>
           <p className="text-xs text-gray-500 border-t border-gray-200 pt-3">
-            💡 Escrow funds are held securely and released to providers only after you confirm service completion.
+            💡 Escrow funds are released to providers only after you confirm service completion.
           </p>
         </div>
       )}
     </div>
   );
 }
-
-
-
-
-
-

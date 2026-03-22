@@ -1,13 +1,9 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Search, SlidersHorizontal, Star, MapPin, ChevronRight, Loader2, Plus, Edit2, Trash2, Eye, EyeOff, Camera, X, ChevronDown, DollarSign, CheckCircle, BarChart2, TrendingUp, Users, Package } from "lucide-react";
 import { useNavigate } from "react-router";
 import { supabase } from "../../lib/supabase";
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar } from "recharts";
-import { useRef } from "react";
 
-// ─────────────────────────────────────────────────────────────────
-// TYPES
-// ─────────────────────────────────────────────────────────────────
 interface Listing {
   id: string;
   title: string;
@@ -46,11 +42,9 @@ const mockListings: Listing[] = [
   { id:"4", title:"Hair Styling",           provider_name:"Style Studio",      avg_rating:4.9, total_reviews:312, price_pence:3500, price_leus:null, price_type:"fixed",  location_city:"London", accepts_leus:true,  accepts_fiat:true, is_remote:false, primary_image:"https://images.unsplash.com/photo-1560066984-138dadb4c035?w=400&h=300&fit=crop", category_name:"Beauty",     description:"" },
 ];
 
-// ─────────────────────────────────────────────────────────────────
-// MAIN COMPONENT — role-aware
-// ─────────────────────────────────────────────────────────────────
+// ── Role-aware entry point ────────────────────────────────────
 export function Services() {
-  const [role, setRole]       = useState<string | null>(null);
+  const [role, setRole]             = useState<string | null>(null);
   const [roleLoading, setRoleLoading] = useState(true);
 
   useEffect(() => {
@@ -71,31 +65,92 @@ export function Services() {
   return <ClientServicesView />;
 }
 
-// ─────────────────────────────────────────────────────────────────
-// CLIENT VIEW — browse services
-// ─────────────────────────────────────────────────────────────────
+// ── Client View ───────────────────────────────────────────────
 function ClientServicesView() {
   const navigate = useNavigate();
-  const [showFilters, setShowFilters] = useState(false);
-  const [leusOnly, setLeusOnly]       = useState(false);
-  const [searchQuery, setSearchQuery] = useState("");
-  const [listings, setListings]       = useState<Listing[]>([]);
-  const [loading, setLoading]         = useState(true);
+  const [showFilters, setShowFilters]       = useState(false);
+  const [leusOnly, setLeusOnly]             = useState(false);
+  const [searchQuery, setSearchQuery]       = useState("");
+  const [listings, setListings]             = useState<Listing[]>([]);
+  const [providers, setProviders]           = useState<any[]>([]);
+  const [loading, setLoading]               = useState(true);
+  const [providerName, setProviderName]     = useState<string | null>(null);   // ← FIXED: was missing
+  const [providerFilter, setProviderFilter] = useState<string | null>(null);
 
-  useEffect(() => { fetchListings(); }, [leusOnly, searchQuery]);
+  // Filter states
+  const [selectedCategory, setSelectedCategory] = useState("");
+  const [priceRange, setPriceRange]             = useState("");
+  const [minRating, setMinRating]               = useState(0);
+  const [locationType, setLocationType]         = useState("");
+  const [sortBy, setSortBy]                     = useState("relevance");
 
-  const fetchListings = async () => {
+  const activeFiltersCount = [
+    selectedCategory, priceRange,
+    minRating > 0 ? minRating : null,
+    locationType,
+    sortBy !== "relevance" ? sortBy : null,
+  ].filter(Boolean).length;
+
+  const clearFilters = () => {
+    setSelectedCategory(""); setPriceRange(""); setMinRating(0);
+    setLocationType(""); setSortBy("relevance");
+  };
+
+  useEffect(() => {
+    const urlParams  = new URLSearchParams(window.location.search);
+    const providerId = urlParams.get("provider");
+    setProviderFilter(providerId);
+    if (providerId) {
+      supabase.from("profiles").select("full_name").eq("id", providerId).single()
+        .then(({ data }) => setProviderName(data?.full_name || "Provider"))
+        .catch(() => setProviderName("Provider"));
+    } else {
+      setProviderName(null);
+    }
+    fetchListings(false, "", providerId, "", "", 0, "", "relevance");
+    fetchProviders();
+  }, []);
+
+  useEffect(() => {
+    if (providerFilter === null && !loading) return;
+    fetchListings(leusOnly, searchQuery, providerFilter, selectedCategory, priceRange, minRating, locationType, sortBy);
+  }, [leusOnly, searchQuery, selectedCategory, priceRange, minRating, locationType, sortBy]);
+
+  const fetchListings = async (
+    leusFilter = leusOnly,
+    searchFilter = searchQuery,
+    providerId: string | null = providerFilter,
+    categoryFilter = selectedCategory,
+    priceFilter = priceRange,
+    ratingFilter = minRating,
+    locationFilter = locationType,
+    sortFilter = sortBy
+  ) => {
     setLoading(true);
     try {
       let query = supabase
         .from("listings")
         .select(`id, title, description, price_pence, price_leus, price_type, accepts_leus, accepts_fiat, location_city, is_remote, profiles!provider_id(full_name, avg_rating, total_reviews), categories(name), listing_images(url, is_primary)`)
         .eq("status", "active");
-      if (leusOnly) query = query.eq("accepts_leus", true);
-      if (searchQuery) query = query.ilike("title", `%${searchQuery}%`);
-      const { data } = await query.limit(20);
+
+      if (leusFilter)     query = query.eq("accepts_leus", true);
+      if (providerId)     query = query.eq("provider_id", providerId);
+      if (locationFilter === "remote")    query = query.eq("is_remote", true);
+      if (locationFilter === "in-person") query = query.eq("is_remote", false);
+      if (priceFilter) {
+        const parts = priceFilter.split("-");
+        if (parts[0]) query = query.gte("price_pence", parseInt(parts[0]) * 100);
+        if (parts[1]) query = query.lte("price_pence", parseInt(parts[1]) * 100);
+      }
+      if (searchFilter) query = query.ilike("title", `%${searchFilter}%`);
+      if (sortFilter === "price_low")  query = query.order("price_pence", { ascending: true });
+      if (sortFilter === "price_high") query = query.order("price_pence", { ascending: false });
+      if (sortFilter === "newest")     query = query.order("created_at", { ascending: false });
+
+      const { data } = await query.limit(50);
+
       if (data && data.length > 0) {
-        setListings(data.map((item: any) => ({
+        let result = data.map((item: any) => ({
           id: item.id, title: item.title, description: item.description,
           price_pence: item.price_pence, price_leus: item.price_leus,
           price_type: item.price_type, accepts_leus: item.accepts_leus,
@@ -105,26 +160,74 @@ function ClientServicesView() {
           total_reviews: item.profiles?.total_reviews || 0,
           provider_name: item.profiles?.full_name || "Unknown Provider",
           category_name: item.categories?.name || null,
-          primary_image: item.listing_images?.find((img: any) => img.is_primary)?.url || item.listing_images?.[0]?.url || "https://images.unsplash.com/photo-1581578731548-c64695cc6952?w=400&h=300&fit=crop",
-        })));
+          primary_image: item.listing_images?.find((img: any) => img.is_primary)?.url
+            || item.listing_images?.[0]?.url
+            || "https://images.unsplash.com/photo-1581578731548-c64695cc6952?w=400&h=300&fit=crop",
+        }));
+        if (ratingFilter > 0) result = result.filter(i => i.avg_rating >= ratingFilter);
+        if (categoryFilter)   result = result.filter(i => i.category_name === categoryFilter);
+        setListings(result);
       } else {
-        setListings(leusOnly ? mockListings.filter(l => l.accepts_leus) : mockListings);
+        let mock = leusFilter ? mockListings.filter(l => l.accepts_leus) : [...mockListings];
+        if (categoryFilter) mock = mock.filter(l => l.category_name === categoryFilter);
+        if (ratingFilter > 0) mock = mock.filter(l => l.avg_rating >= ratingFilter);
+        if (locationFilter === "remote")    mock = mock.filter(l => l.is_remote);
+        if (locationFilter === "in-person") mock = mock.filter(l => !l.is_remote);
+        if (searchFilter) {
+          const s = searchFilter.toLowerCase();
+          mock = mock.filter(l => l.title.toLowerCase().includes(s) || l.provider_name.toLowerCase().includes(s));
+        }
+        setListings(mock);
       }
     } catch {
       setListings(leusOnly ? mockListings.filter(l => l.accepts_leus) : mockListings);
     } finally { setLoading(false); }
   };
 
+  const fetchProviders = async () => {
+    try {
+      const { data, error } = await supabase
+        .from("profiles")
+        .select(`
+          id, full_name, bio, role, avatar_url, kyc_verified,
+          avg_rating, total_reviews, business_address, location_city,
+          business_lat, business_lng,
+          listings!provider_id(count)
+        `)
+        .in("role", ["provider", "local_business"])
+        .eq("listings.status", "active")
+        .order("avg_rating", { ascending: false })
+        .limit(20);
+
+      if (error) {
+        console.error("Error fetching providers:", error);
+        setProviders([]);
+      } else {
+        const formattedProviders = (data || []).map((provider: any) => ({
+          ...provider,
+          services_count: provider.listings?.[0]?.count || 0,
+        }));
+        setProviders(formattedProviders);
+      }
+    } catch (error) {
+      console.error("Error fetching providers:", error);
+      setProviders([]);
+    }
+  };
+
   const formatPrice = (l: Listing) => {
-    if (l.price_pence) return `£${l.price_pence / 100}${l.price_type === "hourly" ? "/hr" : ""}`;
-    if (l.price_leus) return `<span className="leus">ᛃ</span>${l.price_leus}`;
+    if (l.price_pence) return `£${(l.price_pence / 100).toFixed(2)}${l.price_type === "hourly" ? "/hr" : ""}`;
+    if (l.price_leus)  return `ᛃ${l.price_leus}`;
     return "Quote";
   };
 
   return (
     <div className="min-h-screen">
+      {/* Header */}
       <div className="bg-[#1E3A8A]/80 backdrop-blur-lg px-4 pt-6 pb-6 rounded-b-3xl">
-        <h1 className="text-xl text-white mb-4">Find Services</h1>
+        <h1 className="text-xl text-white mb-4">
+          {providerName ? `${providerName}'s Services` : "Find Services"}
+        </h1>
         <div className="relative">
           <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
           <input type="text" value={searchQuery} onChange={e => setSearchQuery(e.target.value)}
@@ -135,15 +238,154 @@ function ClientServicesView() {
           <button onClick={() => setShowFilters(!showFilters)}
             className="bg-white/20 backdrop-blur-sm text-white px-4 py-2 rounded-lg flex items-center gap-2 border border-white/30">
             <SlidersHorizontal className="w-4 h-4" />Filters
+            {activeFiltersCount > 0 && (
+              <span className="bg-[#10B981] text-white text-xs px-1.5 py-0.5 rounded-full">{activeFiltersCount}</span>
+            )}
           </button>
           <button onClick={() => setLeusOnly(!leusOnly)}
             className={`px-4 py-2 rounded-lg flex items-center gap-2 transition-colors ${leusOnly ? "bg-[#10B981] text-white" : "bg-white/20 backdrop-blur-sm text-white border border-white/30"}`}>
-            LEUS Only
+            ᛃ LEUS Only
           </button>
+          {activeFiltersCount > 0 && (
+            <button onClick={clearFilters}
+              className="bg-red-500/20 text-red-200 px-3 py-2 rounded-lg text-sm border border-red-500/30">
+              Clear
+            </button>
+          )}
         </div>
       </div>
 
-      <div className="px-4 py-4">
+      {/* Filters Panel */}
+      {showFilters && (
+        <div className="px-4 mt-4">
+          <div className="bg-white/90 backdrop-blur-md rounded-xl p-4 border border-white/30">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-sm font-semibold text-gray-800">Filters</h3>
+              <button onClick={clearFilters} className="text-xs text-[#1E3A8A] hover:underline">Clear All</button>
+            </div>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-xs text-gray-600 mb-1">Category</label>
+                <div className="relative">
+                  <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+                  <select value={selectedCategory} onChange={e => setSelectedCategory(e.target.value)}
+                    className="w-full px-4 py-2.5 bg-gray-50 rounded-xl border border-gray-200 text-sm appearance-none focus:outline-none focus:ring-2 focus:ring-[#10B981]">
+                    <option value="">All Categories</option>
+                    {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+                  </select>
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs text-gray-600 mb-1">Price Range</label>
+                <div className="relative">
+                  <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+                  <select value={priceRange} onChange={e => setPriceRange(e.target.value)}
+                    className="w-full px-4 py-2.5 bg-gray-50 rounded-xl border border-gray-200 text-sm appearance-none focus:outline-none focus:ring-2 focus:ring-[#10B981]">
+                    <option value="">Any Price</option>
+                    <option value="0-25">Under £25</option>
+                    <option value="25-50">£25 – £50</option>
+                    <option value="50-100">£50 – £100</option>
+                    <option value="100-200">£100 – £200</option>
+                    <option value="200-9999">Over £200</option>
+                  </select>
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs text-gray-600 mb-2">Minimum Rating</label>
+                <div className="flex gap-2">
+                  {[0, 3, 4, 4.5].map(r => (
+                    <button key={r} onClick={() => setMinRating(r)}
+                      className={`flex-1 py-2 rounded-lg text-xs transition-colors ${minRating === r ? "bg-[#1E3A8A] text-white" : "bg-gray-50 text-gray-700 border border-gray-200"}`}>
+                      {r === 0 ? "Any" : `${r}+ ★`}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs text-gray-600 mb-2">Service Type</label>
+                <div className="flex gap-2">
+                  {[["", "All"], ["in-person", "In-Person"], ["remote", "Remote"]].map(([val, label]) => (
+                    <button key={val} onClick={() => setLocationType(val)}
+                      className={`flex-1 py-2 rounded-lg text-xs transition-colors ${locationType === val ? "bg-[#1E3A8A] text-white" : "bg-gray-50 text-gray-700 border border-gray-200"}`}>
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs text-gray-600 mb-1">Sort By</label>
+                <div className="relative">
+                  <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+                  <select value={sortBy} onChange={e => setSortBy(e.target.value)}
+                    className="w-full px-4 py-2.5 bg-gray-50 rounded-xl border border-gray-200 text-sm appearance-none focus:outline-none focus:ring-2 focus:ring-[#10B981]">
+                    <option value="relevance">Relevance</option>
+                    <option value="rating">Highest Rated</option>
+                    <option value="price_low">Price: Low to High</option>
+                    <option value="price_high">Price: High to Low</option>
+                    <option value="newest">Newest First</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+            <button onClick={() => setShowFilters(false)}
+              className="w-full mt-4 bg-[#1E3A8A] text-white py-3 rounded-xl text-sm">
+              Apply Filters
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Providers Section */}
+      {!providerFilter && providers.length > 0 && (
+        <div className="px-4 py-4">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg text-[#1E3A8A] font-semibold">Featured Providers</h2>
+            <button
+              onClick={() => navigate("/home/providers")}
+              className="text-sm text-[#10B981] hover:underline flex items-center gap-1"
+            >
+              View All <ChevronRight className="w-4 h-4" />
+            </button>
+          </div>
+          <div className="flex gap-3 overflow-x-auto pb-2">
+            {providers.slice(0, 6).map((provider) => (
+              <div
+                key={provider.id}
+                onClick={() => navigate(`/home/provider/${provider.id}`)}
+                className="flex-shrink-0 w-32 bg-white/80 backdrop-blur-md rounded-xl p-3 border border-white/30 hover:shadow-md transition-all cursor-pointer"
+              >
+                <div className="flex flex-col items-center text-center">
+                  {provider.avatar_url ? (
+                    <img
+                      src={provider.avatar_url}
+                      alt={provider.full_name}
+                      className="w-12 h-12 rounded-full object-cover mb-2"
+                    />
+                  ) : (
+                    <div className="w-12 h-12 bg-gradient-to-br from-[#10B981] to-[#14B8A6] rounded-full flex items-center justify-center text-white text-lg mb-2">
+                      {provider.full_name?.split(" ").map((n: string) => n[0]).join("").toUpperCase() || "?"}
+                    </div>
+                  )}
+                  <h3 className="text-xs font-semibold text-gray-800 mb-1 line-clamp-2">
+                    {provider.full_name}
+                  </h3>
+                  <div className="flex items-center gap-1 mb-1">
+                    <Star className="w-3 h-3 fill-yellow-400 text-yellow-400" />
+                    <span className="text-xs text-gray-600">
+                      {provider.avg_rating > 0 ? provider.avg_rating.toFixed(1) : "New"}
+                    </span>
+                  </div>
+                  <p className="text-xs text-gray-500">
+                    {provider.services_count} service{provider.services_count !== 1 ? "s" : ""}
+                  </p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <div className="px-4 py-3">
         <p className="text-sm text-gray-600">{loading ? "Loading..." : `${listings.length} services available`}</p>
       </div>
 
@@ -153,13 +395,21 @@ function ClientServicesView() {
         </div>
       ) : (
         <div className="px-4 space-y-4 pb-6">
-          {listings.map(service => (
+          {listings.length === 0 ? (
+            <div className="bg-white/80 rounded-xl p-10 text-center border border-white/30">
+              <Search className="w-10 h-10 text-gray-300 mx-auto mb-3" />
+              <p className="text-gray-500 text-sm">No services found</p>
+              {activeFiltersCount > 0 && (
+                <button onClick={clearFilters} className="mt-3 text-sm text-[#10B981] hover:underline">Clear filters</button>
+              )}
+            </div>
+          ) : listings.map(service => (
             <div key={service.id}
               className="bg-white/80 backdrop-blur-md rounded-xl shadow-sm overflow-hidden hover:shadow-md transition-shadow border border-white/30">
               <div className="relative">
                 <img src={service.primary_image || ""} alt={service.title} className="w-full h-48 object-cover" />
                 {service.accepts_leus && (
-                  <span className="absolute top-3 right-3 bg-[#10B981] text-white text-xs px-3 py-1 rounded-full">LEUS Accepted</span>
+                  <span className="absolute top-3 right-3 bg-[#10B981] text-white text-xs px-3 py-1 rounded-full">ᛃ LEUS</span>
                 )}
               </div>
               <div className="p-4">
@@ -168,7 +418,7 @@ function ClientServicesView() {
                     <h3 className="text-base text-gray-800 mb-1">{service.title}</h3>
                     <p className="text-sm text-gray-500">{service.provider_name}</p>
                   </div>
-                  <p className="text-lg text-[#1E3A8A]">{formatPrice(service)}</p>
+                  <p className="text-lg text-[#1E3A8A] font-semibold">{formatPrice(service)}</p>
                 </div>
                 <div className="flex items-center gap-4 text-sm text-gray-600 mb-3">
                   <div className="flex items-center gap-1">
@@ -194,9 +444,7 @@ function ClientServicesView() {
   );
 }
 
-// ─────────────────────────────────────────────────────────────────
-// PROVIDER VIEW — manage listings + analytics
-// ─────────────────────────────────────────────────────────────────
+// ── Provider View ─────────────────────────────────────────────
 function ProviderServicesView() {
   const navigate                  = useNavigate();
   const [profile, setProfile]     = useState<any>(null);
@@ -215,7 +463,7 @@ function ProviderServicesView() {
     price_pence:"", price_type:"fixed",
     accepts_leus:true, status:"active",
   });
-  const [images, setImages]             = useState<File[]>([]);
+  const [images, setImages]               = useState<File[]>([]);
   const [imagePreviews, setImagePreviews] = useState<string[]>([]);
 
   useEffect(() => { fetchData(); }, []);
@@ -286,13 +534,13 @@ function ProviderServicesView() {
       } else {
         const { data, error: insertErr } = await supabase.from("listings").insert(listingData).select("id").single();
         if (insertErr) throw insertErr;
-        if (!data) throw new Error("Failed to create listing. Check Supabase RLS policies on the listings table.");
+        if (!data) throw new Error("Failed to create listing. Check Supabase RLS policies.");
         listingId = data.id;
       }
       for (let i = 0; i < images.length; i++) {
         const file = images[i];
         if (!file) continue;
-        const ext = file.name.split(".").pop();
+        const ext  = file.name.split(".").pop();
         const path = `listings/${listingId}/${Date.now()}_${i}.${ext}`;
         await supabase.storage.from("listing-images").upload(path, file, { upsert: true });
         const { data: urlData } = supabase.storage.from("listing-images").getPublicUrl(path);
@@ -324,7 +572,6 @@ function ProviderServicesView() {
 
   return (
     <div className="min-h-screen">
-      {/* Header */}
       <div className="bg-[#1E3A8A]/80 backdrop-blur-lg px-4 pt-6 pb-4 rounded-b-3xl">
         <div className="flex items-center justify-between mb-4">
           <div>
@@ -350,7 +597,6 @@ function ProviderServicesView() {
         </div>
       </div>
 
-      {/* Tabs */}
       <div className="px-4 mt-4">
         <div className="flex bg-white/80 backdrop-blur-md rounded-xl p-1 border border-white/30">
           {([
@@ -359,7 +605,7 @@ function ProviderServicesView() {
             { key:"add",       label: editingId ? "Edit" : "Add New", Icon: Plus },
           ] as {key:Tab; label:string; Icon:any}[]).map(({ key, label, Icon }) => (
             <button key={key}
-              onClick={() => { if (key !== "add") setActiveTab(key); else { resetForm(); setActiveTab("add"); } }}
+              onClick={() => key === "add" ? (resetForm(), setActiveTab("add")) : setActiveTab(key as Tab)}
               className={`flex-1 py-2 rounded-lg text-xs font-medium transition-colors flex items-center justify-center gap-1 ${activeTab === key ? "bg-[#1E3A8A] text-white" : "text-gray-600"}`}>
               <Icon className="w-3.5 h-3.5" />{label}
             </button>
@@ -369,7 +615,6 @@ function ProviderServicesView() {
 
       {success && <div className="mx-4 mt-3 p-3 bg-green-50 border border-green-200 rounded-xl text-green-700 text-sm">{success}</div>}
 
-      {/* ── LISTINGS TAB ── */}
       {activeTab === "listings" && (
         <div className="px-4 mt-4 pb-6 space-y-3">
           {listings.length === 0 ? (
@@ -383,10 +628,8 @@ function ProviderServicesView() {
             return (
               <div key={listing.id} className="bg-white/80 backdrop-blur-md rounded-xl shadow-sm border border-white/30 overflow-hidden">
                 <div className="flex gap-3">
-                  {img
-                    ? <img src={img} alt={listing.title} className="w-24 h-24 object-cover flex-shrink-0" />
-                    : <div className="w-24 h-24 bg-gray-100 flex items-center justify-center flex-shrink-0"><Camera className="w-8 h-8 text-gray-300" /></div>
-                  }
+                  {img ? <img src={img} alt={listing.title} className="w-24 h-24 object-cover flex-shrink-0" />
+                       : <div className="w-24 h-24 bg-gray-100 flex items-center justify-center flex-shrink-0"><Camera className="w-8 h-8 text-gray-300" /></div>}
                   <div className="flex-1 p-3">
                     <div className="flex items-start justify-between mb-1">
                       <h3 className="text-sm font-semibold text-gray-800 flex-1">{listing.title}</h3>
@@ -395,16 +638,16 @@ function ProviderServicesView() {
                     <p className="text-xs text-gray-500 mb-1">{listing.category}</p>
                     <div className="flex items-center justify-between">
                       <span className="text-sm font-semibold text-[#1E3A8A]">£{((listing.price_pence || 0) / 100).toFixed(2)}{listing.price_type === "hourly" ? "/hr" : ""}</span>
-                      {listing.accepts_leus && <span className="text-xs bg-[#10B981] text-white px-2 py-0.5 rounded-full">LEUS</span>}
+                      {listing.accepts_leus && <span className="text-xs bg-[#10B981] text-white px-2 py-0.5 rounded-full">ᛃ LEUS</span>}
                     </div>
                   </div>
                 </div>
                 <div className="flex border-t border-gray-100">
-                  <button onClick={() => handleEdit(listing)} className="flex-1 py-2.5 flex items-center justify-center gap-1 text-xs text-[#1E3A8A] hover:bg-blue-50 transition-colors"><Edit2 className="w-3.5 h-3.5" />Edit</button>
-                  <button onClick={() => handleToggleStatus(listing)} className="flex-1 py-2.5 flex items-center justify-center gap-1 text-xs text-gray-600 hover:bg-gray-50 transition-colors border-x border-gray-100">
+                  <button onClick={() => handleEdit(listing)} className="flex-1 py-2.5 flex items-center justify-center gap-1 text-xs text-[#1E3A8A] hover:bg-blue-50"><Edit2 className="w-3.5 h-3.5" />Edit</button>
+                  <button onClick={() => handleToggleStatus(listing)} className="flex-1 py-2.5 flex items-center justify-center gap-1 text-xs text-gray-600 hover:bg-gray-50 border-x border-gray-100">
                     {listing.status === "active" ? <><EyeOff className="w-3.5 h-3.5" />Hide</> : <><Eye className="w-3.5 h-3.5" />Show</>}
                   </button>
-                  <button onClick={() => handleDelete(listing.id)} className="flex-1 py-2.5 flex items-center justify-center gap-1 text-xs text-red-500 hover:bg-red-50 transition-colors"><Trash2 className="w-3.5 h-3.5" />Delete</button>
+                  <button onClick={() => handleDelete(listing.id)} className="flex-1 py-2.5 flex items-center justify-center gap-1 text-xs text-red-500 hover:bg-red-50"><Trash2 className="w-3.5 h-3.5" />Delete</button>
                 </div>
               </div>
             );
@@ -412,15 +655,14 @@ function ProviderServicesView() {
         </div>
       )}
 
-      {/* ── ANALYTICS TAB ── */}
       {activeTab === "analytics" && (
         <div className="px-4 mt-4 pb-6 space-y-4">
           <div className="grid grid-cols-2 gap-3">
             {[
-              { label:"Total Bookings",  value: analytics?.totalBookings || 0,                      Icon: Users,        color:"text-blue-600",   bg:"bg-blue-50" },
-              { label:"Completed",       value: analytics?.completedBookings || 0,                  Icon: CheckCircle,  color:"text-green-600",  bg:"bg-green-50" },
-              { label:"Total Earned",    value:`£${(analytics?.totalEarned || 0).toFixed(2)}`,      Icon: DollarSign,   color:"text-purple-600", bg:"bg-purple-50" },
-              { label:"Active Listings", value: analytics?.activeListings || 0,                     Icon: Package,      color:"text-orange-600", bg:"bg-orange-50" },
+              { label:"Total Bookings",  value: analytics?.totalBookings || 0,                 Icon: Users,       color:"text-blue-600",   bg:"bg-blue-50" },
+              { label:"Completed",       value: analytics?.completedBookings || 0,             Icon: CheckCircle, color:"text-green-600",  bg:"bg-green-50" },
+              { label:"Total Earned",    value:`£${(analytics?.totalEarned || 0).toFixed(2)}`, Icon: DollarSign,  color:"text-purple-600", bg:"bg-purple-50" },
+              { label:"Active Listings", value: analytics?.activeListings || 0,                Icon: Package,     color:"text-orange-600", bg:"bg-orange-50" },
             ].map(({ label, value, Icon, color, bg }, i) => (
               <div key={i} className="bg-white/80 backdrop-blur-md rounded-xl p-4 shadow-sm border border-white/30">
                 <div className={`w-9 h-9 ${bg} rounded-lg flex items-center justify-center mb-2`}><Icon className={`w-5 h-5 ${color}`} /></div>
@@ -429,7 +671,6 @@ function ProviderServicesView() {
               </div>
             ))}
           </div>
-
           <div className="bg-white/80 backdrop-blur-md rounded-xl p-4 shadow-sm border border-white/30">
             <h3 className="text-sm font-semibold text-gray-800 mb-4 flex items-center gap-2"><TrendingUp className="w-4 h-4 text-[#10B981]" />Earnings — Last 7 Days</h3>
             <ResponsiveContainer width="100%" height={160}>
@@ -448,7 +689,6 @@ function ProviderServicesView() {
               </AreaChart>
             </ResponsiveContainer>
           </div>
-
           <div className="bg-white/80 backdrop-blur-md rounded-xl p-4 shadow-sm border border-white/30">
             <h3 className="text-sm font-semibold text-gray-800 mb-4 flex items-center gap-2"><BarChart2 className="w-4 h-4 text-[#10B981]" />Bookings — Last 7 Days</h3>
             <ResponsiveContainer width="100%" height={140}>
@@ -461,7 +701,6 @@ function ProviderServicesView() {
               </BarChart>
             </ResponsiveContainer>
           </div>
-
           <div className="bg-white/80 backdrop-blur-md rounded-xl p-4 shadow-sm border border-white/30">
             <h3 className="text-sm font-semibold text-gray-800 mb-3">Completion Rate</h3>
             <div className="flex items-center gap-4">
@@ -479,20 +718,17 @@ function ProviderServicesView() {
         </div>
       )}
 
-      {/* ── ADD/EDIT TAB ── */}
       {activeTab === "add" && (
         <div className="px-4 mt-4 pb-6">
           <div className="bg-white/80 backdrop-blur-md rounded-xl p-5 shadow-sm border border-white/30 space-y-4">
             <h2 className="text-lg font-semibold text-gray-800">{editingId ? "Edit Listing" : "New Listing"}</h2>
             {error && <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-red-600 text-sm">{error}</div>}
-
             <div>
               <label className="block text-sm text-gray-700 mb-1">Title *</label>
               <input value={form.title} onChange={e => setForm(f => ({ ...f, title:e.target.value }))}
                 placeholder="e.g. Professional House Cleaning"
                 className="w-full px-4 py-3 bg-gray-50 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#10B981] text-sm" />
             </div>
-
             <div>
               <label className="block text-sm text-gray-700 mb-1">Category *</label>
               <div className="relative">
@@ -504,14 +740,12 @@ function ProviderServicesView() {
                 </select>
               </div>
             </div>
-
             <div>
               <label className="block text-sm text-gray-700 mb-1">Description</label>
               <textarea value={form.description} onChange={e => setForm(f => ({ ...f, description:e.target.value }))}
                 placeholder="Describe your service..." rows={3}
                 className="w-full px-4 py-3 bg-gray-50 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#10B981] text-sm resize-none" />
             </div>
-
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="block text-sm text-gray-700 mb-1">Price (£) *</label>
@@ -535,18 +769,16 @@ function ProviderServicesView() {
                 </div>
               </div>
             </div>
-
             <div className="flex gap-3">
               <button type="button" onClick={() => setForm(f => ({ ...f, accepts_leus:!f.accepts_leus }))}
                 className={`flex-1 py-2.5 rounded-xl text-sm font-medium transition-colors border ${form.accepts_leus ? "bg-[#10B981]/10 border-[#10B981] text-[#10B981]" : "bg-gray-50 border-gray-200 text-gray-500"}`}>
-                {form.accepts_leus ? "✓ Accepts LEUS" : "LEUS Off"}
+                {form.accepts_leus ? "✓ Accepts ᛃ LEUS" : "LEUS Off"}
               </button>
               <button type="button" onClick={() => setForm(f => ({ ...f, status:f.status === "active" ? "inactive" : "active" }))}
                 className={`flex-1 py-2.5 rounded-xl text-sm font-medium transition-colors border ${form.status === "active" ? "bg-green-50 border-green-300 text-green-700" : "bg-gray-50 border-gray-200 text-gray-500"}`}>
                 {form.status === "active" ? "✓ Active" : "Inactive"}
               </button>
             </div>
-
             <div>
               <label className="block text-sm text-gray-700 mb-2">Photos (up to 5)</label>
               <input ref={fileInputRef} type="file" accept="image/*" multiple onChange={handleImageSelect} className="hidden" />
@@ -568,7 +800,6 @@ function ProviderServicesView() {
                 )}
               </div>
             </div>
-
             <div className="flex gap-3 pt-2">
               <button onClick={() => { resetForm(); setActiveTab("listings"); }}
                 className="flex-1 border border-gray-300 text-gray-600 py-3 rounded-xl text-sm">Cancel</button>
@@ -583,5 +814,3 @@ function ProviderServicesView() {
     </div>
   );
 }
-
-

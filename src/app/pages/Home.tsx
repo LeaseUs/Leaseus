@@ -280,14 +280,9 @@ export function Home() {
   const handleSelectNearby = (item: any) => {
     if (item.lat && item.lng && map.current) {
       map.current.flyTo({ center: [item.lng, item.lat], zoom: 15 });
-      if (item.type === "provider") {
-        // optional: route to the provider detail page if exists
-        // navigate(`/home/service/${item.id}`);
-      } else {
-        // optional: route to partner info page
-        // navigate(`/home/partners/${item.id}`);
-      }
     }
+    // Navigate to provider's services
+    navigate(`/home/services?provider=${item.id}`);
   };
 
   const filteredList = mapFilter === "providers"
@@ -403,7 +398,7 @@ export function Home() {
             <div className="grid grid-cols-3 gap-3">
               {[
                 { label: "Rating",     value: Number(profile?.avg_rating || 0).toFixed(1), Icon: Star,         color: "text-yellow-500", bg: "bg-yellow-50",  to: "/home/profile" },
-                { label: "Reviews",    value: profile?.total_reviews || 0,                 Icon: MessageCircle, color: "text-blue-600",  bg: "bg-blue-50",    to: "/home/profile" },
+                { label: "Reviews",    value: profile?.total_reviews || 0,                 Icon: MessageCircle, color: "text-blue-600",  bg: "bg-blue-50",    to: "/home/reviews" },
                 { label: "Completion", value: `${providerStats?.completionRate || 0}%`,    Icon: CheckCircle,  color: "text-green-600",  bg: "bg-green-50",   to: "/home/bookings" },
               ].map(({ label, value, Icon, color, bg, to }) => (
                 <Link key={label} to={to} className="bg-white/80 backdrop-blur-md rounded-xl p-4 shadow-sm border border-white/30 text-center hover:shadow-md transition-shadow">
