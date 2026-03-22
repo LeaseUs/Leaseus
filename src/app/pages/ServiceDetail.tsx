@@ -151,6 +151,14 @@ export function ServiceDetail() {
         reference:        `50% deposit for ${service.title}`,
       });
 
+      // ── Award loyalty points for service payment ─────────────
+      if (paymentMethod === "fiat") {
+        await supabase.rpc("award_service_payment_points", {
+          p_user_id: currentUser.id,
+          p_amount_pence: depositPence
+        });
+      }
+
       alert(`Booking submitted! ✅ A 50% deposit of ${paymentMethod === "fiat" ? `£${(depositPence / 100).toFixed(2)}` : `<span className="leus">ᛃ</span>${(depositLeus * 0.95).toFixed(2)}`} has been held. The provider will confirm shortly.`);
       navigate("/home/bookings");
     } catch (err: any) {

@@ -76,6 +76,34 @@ export function Signup() {
       }
 
       if (data.user) {
+        // Create user profile
+        const { error: profileError } = await supabase
+          .from('profiles')
+          .insert({
+            id: data.user.id,
+            full_name: name,
+            email: email,
+            phone: phone,
+            role: role,
+            referral_code: referralCode || null,
+            fiat_balance_pence: 0,
+            leus_balance: 0,
+            loyalty_points: 0,
+          });
+
+        if (profileError) {
+          console.error('Profile creation error:', profileError);
+        }
+
+        // Award signup bonus
+        try {
+          await supabase.rpc('award_signup_bonus', {
+            p_user_id: data.user.id
+          });
+        } catch (bonusError) {
+          console.error('Signup bonus error:', bonusError);
+        }
+
         // Show success message — user needs to verify email
         setSuccess(
           `Account created! 🎉 We've sent a verification email to ${email}. Please check your inbox to verify your account and claim your 50 LEUS bonus!`
