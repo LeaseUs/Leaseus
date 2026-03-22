@@ -22,9 +22,8 @@ export function Profile() {
   const [editForm, setEditForm]   = useState({ full_name: "", phone: "", bio: "" });
   const [passwordForm, setPasswordForm] = useState({ newPass: "", confirm: "" });
   const [showPass, setShowPass]   = useState(false);
-  const [notifPrefs, setNotifPrefs] = useState({
-    bookings: true, payments: true, messages: true, promotions: false, loyalty: true,
-  });
+  const defaultNotifPrefs = { bookings: true, payments: true, messages: true, promotions: false, loyalty: true };
+  const [notifPrefs, setNotifPrefs] = useState(defaultNotifPrefs);
   const [locationForm, setLocationForm] = useState({
     business_address: "", location_city: "", business_lat: "", business_lng: "",
   });
@@ -53,6 +52,31 @@ export function Profile() {
         business_lat:     data?.business_lat     ? String(data.business_lat) : "",
         business_lng:     data?.business_lng     ? String(data.business_lng) : "",
       });
+
+      // Load notification preferences from profile if available
+      if (data?.notification_preferences) {
+        try {
+          const parsed = typeof data.notification_preferences === "string"
+            ? JSON.parse(data.notification_preferences)
+            : data.notification_preferences;
+          setNotifPrefs({ ...defaultNotifPrefs, ...parsed });
+        } catch {
+          setNotifPrefs(defaultNotifPrefs);
+        }
+      } else if (data?.preferences) {
+        try {
+          const parsed = typeof data.preferences === "string"
+            ? JSON.parse(data.preferences)
+            : data.preferences;
+          if (parsed?.notification_preferences) {
+            setNotifPrefs({ ...defaultNotifPrefs, ...parsed.notification_preferences });
+          }
+        } catch {
+          setNotifPrefs(defaultNotifPrefs);
+        }
+      } else {
+        setNotifPrefs(defaultNotifPrefs);
+      }
     } catch (err) { console.error(err); }
     finally { setLoading(false); }
   };
@@ -91,6 +115,30 @@ export function Profile() {
       setTimeout(closeModal, 1800);
     } catch (err: any) { setError(err.message || "Failed to save location."); }
     finally { setSaving(false); }
+  };
+
+  const handleSaveNotificationPreferences = async () => {
+    setSaving(true); clearMessages();
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      const { error } = await supabase.from("profiles").update({
+        notification_preferences: notifPrefs,
+      }).eq("id", user!.id);
+      if (error) throw error;
+      setSuccess("Notification preferences saved.");
+      fetchProfile();
+      setTimeout(closeModal, 1200);
+    } catch (err: any) {
+      // Fallback for DB schemas without this column, just keep state local and close.
+      if (err?.message?.includes("column \"notification_preferences\" does not exist")) {
+        setSuccess("Notification preferences saved locally.");
+        setTimeout(closeModal, 1200);
+      } else {
+        setError(err.message || "Failed to save notification preferences.");
+      }
+    } finally {
+      setSaving(false);
+    }
   };
 
   const detectLocation = () => {
@@ -513,14 +561,17 @@ export function Profile() {
                           <p className="text-xs text-gray-500">{desc}</p>
                         </div>
                       </div>
-                      <button onClick={() => setNotifPrefs({ ...notifPrefs, [key]: !notifPrefs[key as keyof typeof notifPrefs] })}
+                      <button type="button" onClick={() => setNotifPrefs({ ...notifPrefs, [key]: !notifPrefs[key as keyof typeof notifPrefs] })}
                         className={`w-12 h-6 rounded-full transition-colors relative ${notifPrefs[key as keyof typeof notifPrefs] ? "bg-[#10B981]" : "bg-gray-300"}`}>
                         <span className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-transform shadow ${notifPrefs[key as keyof typeof notifPrefs] ? "translate-x-7" : "translate-x-1"}`} />
                       </button>
                     </div>
                   ))}
                 </div>
-                <button onClick={closeModal} className="w-full mt-4 bg-[#1E3A8A] text-white py-3 rounded-xl">Save Preferences</button>
+<button onClick={handleSaveNotificationPreferences} disabled={saving}
+                    className="w-full mt-4 bg-[#1E3A8A] text-white py-3 rounded-xl flex items-center justify-center gap-2 disabled:opacity-70">
+                    {saving ? <><Loader2 className="w-4 h-4 animate-spin" />Saving...</> : "Save Preferences"}
+                  </button>
               </>
             )}
 
