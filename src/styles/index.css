@@ -1,9 +1,9 @@
 @import './fonts.css';
 @import './tailwind.css';
 @import './theme.css';
-/* Make Jera rune (LEUS symbol) bigger everywhere */
+/* Set Jera rune (LEUS symbol) to same size as regular currency symbols */
 .leus {
-  font-size: 1.3em;
+  font-size: inherit;
   font-weight: 700;
   vertical-align: middle;
   line-height: 1;
