@@ -158,14 +158,11 @@ export function Bookings() {
   };
 
   const handleProviderNavigate = (booking: any) => {
-    const lat = booking?.client?.business_lat;
-    const lng = booking?.client?.business_lng;
-    if (!lat || !lng) {
-      alert("Client location is unavailable. Cannot open navigation.");
+    if (!booking?.id) {
+      alert("Invalid booking. Cannot start navigation.");
       return;
     }
-    const url = `https://www.mapbox.com/directions/?destination=${lat},${lng}&profile=driving`;
-    window.open(url, "_blank");
+    navigate(`/home/navigation/${booking.id}`);
   };
 
   const handleComplete = async (bookingId: string) => {

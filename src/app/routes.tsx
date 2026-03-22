@@ -9,6 +9,7 @@ import { Messages } from "./pages/Messages";
 import { Conversation } from "./pages/Conversation";
 import { ServiceDetail } from "./pages/ServiceDetail";
 import { Bookings } from "./pages/Bookings";
+import { ProviderNavigation } from "./pages/ProviderNavigation";
 import { Subscriptions } from "./pages/Subscriptions";
 import { Loyalty } from "./pages/Loyalty";
 import { Profile } from "./pages/Profile";
@@ -63,6 +64,7 @@ export const router = createBrowserRouter([
           { path: "services", Component: Services },
           { path: "service/:id", Component: ServiceDetail },
           { path: "bookings", Component: Bookings },
+          { path: "navigation/:id", Component: ProviderNavigation },
           { path: "messages", Component: Messages },
           { path: "conversation/:id", Component: Conversation },
           { path: "subscriptions", Component: Subscriptions },
