@@ -55,11 +55,11 @@ export function Bookings() {
         escrow_held, escrow_released,
         reschedule_date, reschedule_time, reschedule_status,
         client_id, provider_id,
-        client:profiles!client_id(id, full_name, avatar_url),
+        client:profiles!client_id(id, full_name, avatar_url, business_lat, business_lng),
         provider:profiles!provider_id(id, full_name, avatar_url),
         listings(id, title, listing_images(url, is_primary))
       `).order("created_at", { ascending: false });
-      query = isProvider ? query.eq("provider_id", user.id) : query.eq("client_id", user.id);
+      query = isProvider ? query.eq("provider_id", user.id).in("status", ["pending", "confirmed", "in_progress"]) : query.eq("client_id", user.id);
       const { data: bookingData, error } = await query;
       if (error) console.error("Bookings fetch error:", error.message);
       setBookings(bookingData || []);
@@ -155,6 +155,17 @@ export function Bookings() {
       await supabase.from("bookings").update({ status: "cancelled", cancelled_by: "provider", cancellation_reason: "Cancelled by provider" }).eq("id", bookingId);
       fetchData();
     } catch (err) { console.error(err); } finally { setActionLoading(null); }
+  };
+
+  const handleProviderNavigate = (booking: any) => {
+    const lat = booking?.client?.business_lat;
+    const lng = booking?.client?.business_lng;
+    if (!lat || !lng) {
+      alert("Client location is unavailable. Cannot open navigation.");
+      return;
+    }
+    const url = `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}&travelmode=driving`;
+    window.open(url, "_blank");
   };
 
   const handleComplete = async (bookingId: string) => {
@@ -292,13 +303,16 @@ export function Bookings() {
                 {/* Provider: confirmed */}
                 {isProvider && booking.status === "confirmed" && (
                   <div className="flex gap-2">
+                    <button onClick={() => handleProviderNavigate(booking)} className="flex-1 bg-[#10B981] text-white py-2.5 rounded-xl text-sm flex items-center justify-center gap-1 hover:bg-[#0f8f69] transition-colors">
+                      <MapPin className="w-4 h-4" />Navigate
+                    </button>
                     <button onClick={() => handleComplete(booking.id)} disabled={isLoading} className="flex-1 bg-[#1E3A8A] text-white py-2.5 rounded-xl text-sm flex items-center justify-center gap-1 disabled:opacity-70">
                       {isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle className="w-4 h-4" />}Mark Complete
                     </button>
-                    <button onClick={() => handleOpenChat(booking)} className="p-2.5 border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors">
+                    <button onClick={() => handleOpenChat(booking)} className="p-2.5 border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors" title="Message client">
                       <MessageCircle className="w-4 h-4 text-[#1E3A8A]" />
                     </button>
-                    <button onClick={() => handleProviderCancel(booking.id)} disabled={isLoading} className="p-2.5 border border-red-200 rounded-xl hover:bg-red-50 transition-colors">
+                    <button onClick={() => handleProviderCancel(booking.id)} disabled={isLoading} className="p-2.5 border border-red-200 rounded-xl hover:bg-red-50 transition-colors" title="Cancel booking">
                       <XCircle className="w-4 h-4 text-red-400" />
                     </button>
                   </div>
