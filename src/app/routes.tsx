@@ -1,90 +1,99 @@
 import { createBrowserRouter } from "react-router";
-import { Home } from "./pages/Home";
-import { Login } from "./pages/Login";
-import { Signup } from "./pages/Signup";
-import { Wallet } from "./pages/Wallet";
-import { MintLeaf } from "./pages/MintLeaf";
-import { Services } from "./pages/Services";
-import { Messages } from "./pages/Messages";
-import { Conversation } from "./pages/Conversation";
-import { ServiceDetail } from "./pages/ServiceDetail";
-import { Bookings } from "./pages/Bookings";
-import { ProviderNavigation } from "./pages/ProviderNavigation";
-import { Subscriptions } from "./pages/Subscriptions";
-import { Loyalty } from "./pages/Loyalty";
-import { Profile } from "./pages/Profile";
-import { Reviews } from "./pages/Reviews";
-import { PartnerRegister } from "./pages/PartnerRegister";
-import { AdminPartners } from "./pages/AdminPartners";
-import { Splash } from "./pages/Splash";
-import { Welcome } from "./pages/Welcome";
-import { ProviderProfile } from "./pages/ProviderProfile";
-import { Providers } from "./pages/Providers";
-import { Layout } from "./components/Layout";
-import { AuthGuard } from "./components/AuthGuard";
-import { InitialRedirect } from "./components/InitialRedirect";
-import { NotFound } from "./pages/NotFound";
+
+const lazyRoute = <T extends Record<string, unknown>>(loader: () => Promise<T>, key: keyof T) => ({
+  lazy: async () => {
+    const mod = await loader();
+    return { Component: mod[key] as never };
+  },
+});
 
 export const router = createBrowserRouter([
   {
     index: true,
-    Component: InitialRedirect,
+    ...lazyRoute(() => import("./components/InitialRedirect"), "InitialRedirect"),
   },
   {
     path: "/splash",
-    Component: Splash,
+    ...lazyRoute(() => import("./pages/Splash"), "Splash"),
   },
   {
     path: "/welcome",
-    Component: Welcome,
+    ...lazyRoute(() => import("./pages/Welcome"), "Welcome"),
   },
   {
     path: "/login",
-    Component: Login,
+    ...lazyRoute(() => import("./pages/Login"), "Login"),
   },
   {
     path: "/signup",
-    Component: Signup,
+    ...lazyRoute(() => import("./pages/Signup"), "Signup"),
+  },
+  {
+    path: "/reset-password",
+    ...lazyRoute(() => import("./pages/ResetPassword"), "ResetPassword"),
+  },
+  {
+    path: "/provider-onboarding",
+    ...lazyRoute(() => import("./pages/ProviderOnboarding"), "ProviderOnboarding"),
   },
   {
     path: "/partner/register",
-    Component: PartnerRegister,
+    ...lazyRoute(() => import("./pages/PartnerRegister"), "PartnerRegister"),
   },
   {
     path: "/admin/partners",
-    Component: AdminPartners,
+    ...lazyRoute(() => import("./pages/AdminPartners"), "AdminPartners"),
+  },
+  {
+    path: "/admin/kyc",
+    ...lazyRoute(() => import("./pages/AdminKYC"), "AdminKYC"),
+  },
+  {
+    path: "/admin/dashboard",
+    ...lazyRoute(() => import("./pages/AdminDashboard"), "AdminDashboard"),
+  },
+  {
+    path: "/admin/profile",
+    ...lazyRoute(() => import("./pages/AdminProfile"), "AdminProfile"),
+  },
+  {
+    path: "/kyc-pending",
+    ...lazyRoute(() => import("./pages/KYCPending"), "KYCPending"),
+  },
+  {
+    path: "/kyc-rejected",
+    ...lazyRoute(() => import("./pages/KYCRejected"), "KYCRejected"),
   },
   {
     path: "/home",
-    Component: AuthGuard,
+    ...lazyRoute(() => import("./components/AuthGuard"), "AuthGuard"),
     children: [
       {
-        Component: Layout,
+        ...lazyRoute(() => import("./components/Layout"), "Layout"),
         children: [
-          { index: true, Component: Home },
-          { path: "wallet", Component: Wallet },
-          { path: "mintleaf", Component: MintLeaf },
-          { path: "services", Component: Services },
-          { path: "service/:id", Component: ServiceDetail },
-          { path: "provider/:id", Component: ProviderProfile },
-          { path: "providers", Component: Providers },
-          { path: "bookings", Component: Bookings },
-          { path: "navigation/:id", Component: ProviderNavigation },
-          { path: "messages", Component: Messages },
-          { path: "conversation/:id", Component: Conversation },
-          { path: "subscriptions", Component: Subscriptions },
-          { path: "loyalty", Component: Loyalty },
-          { path: "profile", Component: Profile },
-          { path: "reviews", Component: Reviews },
+          { index: true,              ...lazyRoute(() => import("./pages/Home"), "Home") },
+          { path: "wallet",           ...lazyRoute(() => import("./pages/Wallet"), "Wallet") },
+          { path: "mintleaf",         ...lazyRoute(() => import("./pages/MintLeaf"), "MintLeaf") },
+          { path: "services",         ...lazyRoute(() => import("./pages/Services"), "Services") },
+          { path: "service/:id",      ...lazyRoute(() => import("./pages/ServiceDetail"), "ServiceDetail") },
+          { path: "provider/:id",     ...lazyRoute(() => import("./pages/ProviderProfile"), "ProviderProfile") },
+          { path: "kyc",              ...lazyRoute(() => import("./pages/ProviderKYC"), "ProviderKYC") },
+          { path: "kyc/assessment",   ...lazyRoute(() => import("./pages/KYCAssessment"), "KYCAssessment") },
+          { path: "providers",        ...lazyRoute(() => import("./pages/Providers"), "Providers") },
+          { path: "bookings",         ...lazyRoute(() => import("./pages/Bookings"), "Bookings") },
+          { path: "navigation/:id",   ...lazyRoute(() => import("./pages/ProviderNavigation"), "ProviderNavigation") },
+          { path: "messages",         ...lazyRoute(() => import("./pages/Messages"), "Messages") },
+          { path: "conversation/:id", ...lazyRoute(() => import("./pages/Conversation"), "Conversation") },
+          { path: "subscriptions",    ...lazyRoute(() => import("./pages/Subscriptions"), "Subscriptions") },
+          { path: "loyalty",          ...lazyRoute(() => import("./pages/Loyalty"), "Loyalty") },
+          { path: "profile",          ...lazyRoute(() => import("./pages/Profile"), "Profile") },
+          { path: "reviews",          ...lazyRoute(() => import("./pages/Reviews"), "Reviews") },
         ],
       },
     ],
   },
   {
     path: "*",
-    Component: NotFound,
+    ...lazyRoute(() => import("./pages/NotFound"), "NotFound"),
   },
 ]);
-
-
-

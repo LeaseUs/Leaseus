@@ -1,8 +1,3 @@
-// LeaseUs AI — powered by Claude (Anthropic)
-// Set VITE_ANTHROPIC_API_KEY in your environment variables
-
-const ANTHROPIC_API_KEY = import.meta.env.VITE_ANTHROPIC_API_KEY || "";
-
 const SYSTEM_PROMPT = `You are LeaseUs AI, a helpful assistant for the LeaseUs service marketplace platform.
 LeaseUs connects clients with service providers for home services, professional services and more.
 Users can pay with GBP or LEUS (the platform utility token).
@@ -20,20 +15,12 @@ interface Message { role: Role; content: string; }
 
 // ── Core API call ─────────────────────────────────────────────
 async function callClaude(messages: Message[]): Promise<string> {
-  if (!ANTHROPIC_API_KEY) {
-    throw new Error("AI not configured. Add VITE_ANTHROPIC_API_KEY to your environment variables.");
-  }
-
-  const response = await fetch("https://api.anthropic.com/v1/messages", {
+  const response = await fetch("/api/anthropic", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      "x-api-key": ANTHROPIC_API_KEY,
-      "anthropic-version": "2023-06-01",
-      "anthropic-dangerous-direct-browser-access": "true",
     },
     body: JSON.stringify({
-      model: "claude-haiku-4-5",
       max_tokens: 1024,
       system: SYSTEM_PROMPT,
       messages: messages.map(m => ({ role: m.role, content: m.content })),
@@ -46,7 +33,7 @@ async function callClaude(messages: Message[]): Promise<string> {
   }
 
   const data = await response.json() as any;
-  return data.content?.[0]?.text || "I could not generate a response. Please try again.";
+  return data.content || "I could not generate a response. Please try again.";
 }
 
 // ── Chat ──────────────────────────────────────────────────────
@@ -106,5 +93,12 @@ Return JSON array only: [{"title": string, "category": string, "reason": string}
 
 // ── Status check ──────────────────────────────────────────────
 export async function checkAIStatus(): Promise<boolean> {
-  return !!ANTHROPIC_API_KEY;
+  try {
+    const response = await fetch("/api/anthropic");
+    if (!response.ok) return false;
+    const data = await response.json() as { configured?: boolean };
+    return Boolean(data.configured);
+  } catch {
+    return false;
+  }
 }

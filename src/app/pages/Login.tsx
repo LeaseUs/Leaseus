@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router";
 import { Eye, EyeOff, Fingerprint, Loader2 } from "lucide-react";
-import bgImage from "../../assets/background.png";
+import { fetchAuthBootstrap, resolvePostAuthDestination } from "../../lib/authBootstrap";
 import { supabase } from "../../lib/supabase";
 
 // ── Median.co bridge type ─────────────────────────────────────────
@@ -26,8 +26,6 @@ declare global {
 const BIO_REGISTERED_KEY  = "leaseus_bio_registered";
 const BIO_CREDENTIAL_KEY  = "leaseus_bio_credential_id";
 const BIO_EMAIL_KEY       = "leaseus_bio_email";
-const SESSION_CACHE_KEY   = "leaseus_session_cache";
-
 // ── Helpers ───────────────────────────────────────────────────────
 const isMedianApp = () =>
   typeof window !== "undefined" && !!window.gonative?.auth?.bioAuth;
@@ -231,27 +229,15 @@ export function Login() {
     const { data: { session }, error: sessionError } = await supabase.auth.getSession();
 
     if (session && !sessionError) {
-      navigate("/home");
+      const bootstrap = await fetchAuthBootstrap(session.user.id);
+      navigate(resolvePostAuthDestination(bootstrap), {
+        replace: true,
+        state: { authBootstrap: bootstrap },
+      });
       return;
     }
 
-    // Session expired — we need to re-authenticate
-    // Check if we have cached credentials (encrypted in production, plain for MVP)
-    const cached = sessionStorage.getItem(SESSION_CACHE_KEY);
-    if (cached) {
-      try {
-        const { e, p } = JSON.parse(cached);
-        const { error } = await supabase.auth.signInWithPassword({ email: e, password: p });
-        if (!error) {
-          localStorage.setItem("isLoggedIn", "true");
-          navigate("/home");
-          return;
-        }
-      } catch { /* ignore */ }
-    }
-
-    // Session fully expired — show helpful message
-    setError("Your session has expired. Please sign in with your password once to re-enable biometric.");
+    setError("Your session has expired. Please sign in with your password to continue.");
     setBioLoading(false);
   };
 
@@ -262,7 +248,7 @@ export function Login() {
     setLoading(true);
 
     try {
-      const { error } = await supabase.auth.signInWithPassword({ email, password });
+      const { data, error } = await supabase.auth.signInWithPassword({ email, password });
 
       if (error) {
         if (error.message.includes("Invalid login credentials")) {
@@ -278,16 +264,16 @@ export function Login() {
       // mark logged in
       localStorage.setItem("isLoggedIn", "true");
 
-      // Cache credentials in sessionStorage for biometric session restore
-      // (sessionStorage is cleared when browser tab closes — reasonable security tradeoff for MVP)
-      sessionStorage.setItem(SESSION_CACHE_KEY, JSON.stringify({ e: email, p: password }));
+      const userId = data.user?.id || data.session?.user?.id;
+      const bootstrap = userId ? await fetchAuthBootstrap(userId) : null;
 
       // Offer biometric registration if supported and not yet registered
       if (bioSupported && !hasBioRegistered()) {
         await registerBiometric(email);
       }
 
-      navigate("/home");
+      const destination = resolvePostAuthDestination(bootstrap);
+      navigate(destination, { replace: true, state: bootstrap ? { authBootstrap: bootstrap } : undefined });
     } catch {
       setError("Something went wrong. Please try again.");
     } finally {
@@ -313,20 +299,12 @@ export function Login() {
 
   // ── Render ────────────────────────────────────────────────────
   return (
-    <div
-      className="min-h-screen flex flex-col items-center justify-center px-6 max-w-md mx-auto relative overflow-hidden"
-      style={{
-        backgroundImage: `url(${bgImage})`,
-        backgroundSize: "cover",
-        backgroundPosition: "center",
-        backgroundRepeat: "no-repeat",
-      }}
-    >
+    <div className="leaseus-auth-screen min-h-screen flex flex-col items-center justify-center px-6 max-w-md mx-auto">
       {/* Backdrop */}
-      <div className="absolute inset-0 backdrop-blur-md bg-white/20"></div>
+      <div className="leaseus-auth-overlay absolute inset-0"></div>
 
       {/* Form card */}
-      <div className="w-full bg-white/90 backdrop-blur-lg rounded-2xl p-6 shadow-xl relative z-10 border border-white/50">
+      <div className="leaseus-auth-card w-full rounded-2xl p-6 relative z-10">
         <h2
           className="text-3xl font-bold text-[#1E3A8A] mb-2 text-center"
           style={{ fontFamily: "Syne, sans-serif" }}
@@ -344,12 +322,12 @@ export function Login() {
         <form onSubmit={handleLogin} className="space-y-4">
           {/* Email */}
           <div>
-            <label className="block text-sm text-gray-700 mb-2">Email or Phone</label>
+            <label className="block text-sm text-gray-700 mb-2">Email</label>
             <input
               type="text"
               value={email}
               onChange={e => setEmail(e.target.value)}
-              placeholder="Enter your email or phone"
+              placeholder="Enter your email"
               className="w-full px-4 py-3 bg-gray-50 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#10B981]"
               required
             />

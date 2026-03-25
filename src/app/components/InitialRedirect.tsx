@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import { useNavigate } from "react-router";
+import { fetchAuthBootstrap, getStoredAuthBootstrap, resolvePostAuthDestination } from "../../lib/authBootstrap";
 import { supabase } from "../../lib/supabase";
 
 export function InitialRedirect() {
@@ -9,16 +10,25 @@ export function InitialRedirect() {
     const runRedirect = async () => {
       const hasSeenWelcome = localStorage.getItem("hasSeenWelcome");
       const isLoggedIn = localStorage.getItem("isLoggedIn");
+      const cachedBootstrap = getStoredAuthBootstrap();
+      const cachedDestination = resolvePostAuthDestination(cachedBootstrap);
 
       if (isLoggedIn) {
-        navigate("/home");
-        return;
+        if (cachedBootstrap) {
+          navigate(cachedDestination);
+          return;
+        }
       }
 
       const { data: { session } } = await supabase.auth.getSession();
       if (session?.user) {
         localStorage.setItem("isLoggedIn", "true");
-        navigate("/home");
+        if (cachedBootstrap?.user?.id === session.user.id) {
+          navigate(cachedDestination);
+          return;
+        }
+        const bootstrap = await fetchAuthBootstrap(session.user.id);
+        navigate(resolvePostAuthDestination(bootstrap));
         return;
       }
 

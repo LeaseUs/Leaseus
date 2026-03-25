@@ -1,14 +1,18 @@
 import { Outlet, Link, useLocation } from "react-router";
-import { Home, Wallet, Search, CalendarCheck, User, MessageCircle } from "lucide-react";
-import { useEffect, useState, useCallback } from "react";
+import { Home, Wallet, Search, CalendarCheck, User, MessageCircle, Bot } from "lucide-react";
+import { useEffect, useState, useCallback, lazy, Suspense } from "react";
 import { supabase } from "../../lib/supabase";
-import bgImage from "../../assets/background.png";
-import { AIChatWidget } from "./AIChatWidget";
+
+const AIChatWidget = lazy(async () => {
+  const mod = await import("./AIChatWidget");
+  return { default: mod.AIChatWidget };
+});
 
 export function Layout() {
   const location                        = useLocation();
   const [unreadCount, setUnreadCount]   = useState(0);
   const [pendingBookings, setPendingBookings] = useState(0);
+  const [showAIWidget, setShowAIWidget] = useState(false);
 
   const navItems = [
     { icon: Home,          label: "Home",     path: "/home" },
@@ -67,23 +71,26 @@ export function Layout() {
   }, [fetchCounts]);
 
   return (
-    <div
-      className="h-screen flex flex-col max-w-md mx-auto relative"
-      style={{
-        backgroundImage: `url(${bgImage})`,
-        backgroundSize: "cover",
-        backgroundPosition: "center",
-        backgroundRepeat: "no-repeat",
-        backgroundAttachment: "fixed",
-      }}
-    >
+    <div className="leaseus-app-shell h-screen flex flex-col max-w-md mx-auto">
       {/* Main Content */}
       <div className="flex-1 overflow-y-auto pb-20">
         <Outlet />
       </div>
 
-      {/* AI Chat Widget — floats above bottom nav */}
-      <AIChatWidget />
+      {/* AI Chat Widget — lazy loaded on demand so it doesn't slow every page */}
+      {showAIWidget ? (
+        <Suspense fallback={null}>
+          <AIChatWidget defaultOpen />
+        </Suspense>
+      ) : (
+        <button
+          onClick={() => setShowAIWidget(true)}
+          className="fixed bottom-24 right-4 z-40 flex h-14 w-14 items-center justify-center rounded-full bg-[#1E3A8A] text-white shadow-lg transition-all hover:bg-[#152d6b]"
+          aria-label="Open LeaseUs AI"
+        >
+          <Bot className="h-6 w-6" />
+        </button>
+      )}
 
       {/* Bottom Navigation */}
       <nav className="fixed bottom-0 left-0 right-0 max-w-md mx-auto bg-white/80 backdrop-blur-lg border-t border-white/20 px-2 py-2 safe-area-inset-bottom">

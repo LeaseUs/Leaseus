@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router";
 import { ArrowLeft, Star, MapPin, Clock, Shield, CheckCircle, Calendar, MessageCircle, Loader2, AlertCircle } from "lucide-react";
+import { createBookingWithDeposit, getBookingFinancials } from "../../lib/booking";
 import { supabase } from "../../lib/supabase";
 
 export function ServiceDetail() {
@@ -89,77 +90,29 @@ export function ServiceDetail() {
     try {
       const totalPence    = service.price_pence || 0;
       const totalLeus     = service.price_leus || 0;
-      const depositPence  = Math.round(totalPence * 0.5);
-      const depositLeus   = totalLeus * 0.5;
-
-      // ── Check balance ──────────────────────────────────────────
-      if (paymentMethod === "fiat") {
-        if (currentUser.fiat_balance_pence < depositPence) {
-          setError(`Insufficient balance. You need £${(depositPence / 100).toFixed(2)} for the 50% deposit but have £${(currentUser.fiat_balance_pence / 100).toFixed(2)}.`);
-          setBooking(false); return;
-        }
-      } else {
-        const leusDeposit = depositLeus * 0.95;
-        if (currentUser.leus_balance < leusDeposit) {
-          setError(`Insufficient LEUS balance. You need <span className="leus">ᛃ</span>${leusDeposit.toFixed(2)} for the 50% deposit.`);
-          setBooking(false); return;
-        }
-      }
-
-      // ── Deduct deposit from wallet ─────────────────────────────
-      if (paymentMethod === "fiat") {
-        const { error: deductErr } = await supabase.from("profiles")
-          .update({ fiat_balance_pence: currentUser.fiat_balance_pence - depositPence })
-          .eq("id", currentUser.id);
-        if (deductErr) throw deductErr;
-      } else {
-        const leusDeposit = depositLeus * 0.95;
-        const { error: deductErr } = await supabase.from("profiles")
-          .update({ leus_balance: currentUser.leus_balance - leusDeposit })
-          .eq("id", currentUser.id);
-        if (deductErr) throw deductErr;
-      }
-
-      // ── Create booking ─────────────────────────────────────────
       const scheduledAt      = new Date(`${selectedDate} ${selectedTime}`).toISOString();
-      const platformFeePence = paymentMethod === "fiat" ? Math.round(totalPence * 0.02) : 0;
-
-      const { error: bookingError } = await supabase.from("bookings").insert({
-        listing_id:         service.id,
-        client_id:          currentUser.id,
-        provider_id:        service.provider_id,
-        title:              service.title,
-        description:        `Booking for ${service.title} on ${selectedDate} at ${selectedTime}`,
-        scheduled_at:       scheduledAt,
-        status:             "pending",
-        payment_method:     paymentMethod,
-        amount_pence:       paymentMethod === "fiat" ? totalPence : null,
-        amount_leus:        paymentMethod === "leus" ? totalLeus * 0.95 : null,
-        deposit_pence:      paymentMethod === "fiat" ? depositPence : 0,
-        deposit_leus:       paymentMethod === "leus" ? depositLeus * 0.95 : 0,
-        deposit_held:       true,
-        platform_fee_pence: platformFeePence,
-      });
-      if (bookingError) throw bookingError;
-
-      // ── Log wallet transaction ─────────────────────────────────
-      await supabase.from("wallet_transactions").insert({
-        user_id:          currentUser.id,
-        type:             "booking_deposit",
-        fiat_delta_pence: paymentMethod === "fiat" ? -depositPence : 0,
-        leus_delta:       paymentMethod === "leus" ? -(depositLeus * 0.95) : 0,
-        reference:        `50% deposit for ${service.title}`,
+      const { financials } = await createBookingWithDeposit({
+        user: currentUser,
+        paymentMethod,
+        listingId: service.id,
+        providerId: service.provider_id,
+        title: service.title,
+        description: `Booking for ${service.title} on ${selectedDate} at ${selectedTime}`,
+        scheduledAt,
+        amountPence: totalPence,
+        amountLeus: totalLeus,
       });
 
       // ── Award loyalty points for service payment ─────────────
       if (paymentMethod === "fiat") {
-        await supabase.rpc("award_service_payment_points", {
+        const { error: pointsError } = await supabase.rpc("award_service_payment_points", {
           p_user_id: currentUser.id,
-          p_amount_pence: depositPence
+          p_amount_pence: financials.depositPence
         });
+        if (pointsError) console.warn("Failed to award loyalty points:", pointsError.message);
       }
 
-      alert(`Booking submitted! ✅ A 50% deposit of ${paymentMethod === "fiat" ? `£${(depositPence / 100).toFixed(2)}` : `<span className="leus">ᛃ</span>${(depositLeus * 0.95).toFixed(2)}`} has been held. The provider will confirm shortly.`);
+      alert(`Booking submitted! A 50% deposit of ${paymentMethod === "fiat" ? `£${(financials.depositPence / 100).toFixed(2)}` : `ᛃ${financials.depositLeus.toFixed(2)}`} has been held. The provider will confirm shortly.`);
       navigate("/home/bookings");
     } catch (err: any) {
       setError(err.message || "Failed to create booking. Please try again.");
@@ -170,7 +123,12 @@ export function ServiceDetail() {
   if (!service) return null;
 
   const isNegotiable = service.booking_type === "negotiable";
-  const totalPrice   = paymentMethod === "leus" ? (service.price_pence / 100) * 0.95 : service.price_pence / 100;
+  const previewFinancials = getBookingFinancials({
+    amountPence: service.price_pence || 0,
+    amountLeus: service.price_leus || 0,
+    paymentMethod,
+  });
+  const totalPrice   = paymentMethod === "leus" ? Number(previewFinancials.amountLeus || 0) : (service.price_pence || 0) / 100;
   const depositPrice = totalPrice * 0.5;
   const discount     = paymentMethod === "leus" ? (service.price_pence / 100) * 0.05 : 0;
 

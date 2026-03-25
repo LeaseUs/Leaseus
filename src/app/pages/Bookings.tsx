@@ -35,6 +35,23 @@ export function Bookings() {
 
   useEffect(() => { fetchData(); }, []);
 
+  const creditBookingAmount = async (userId: string, amountPence: number, amountLeus: number) => {
+    const { data: wallet, error: walletError } = await supabase
+      .from("profiles")
+      .select("fiat_balance_pence, leus_balance")
+      .eq("id", userId)
+      .single();
+    if (walletError) throw walletError;
+
+    const updates: Record<string, number> = {};
+    if (amountPence !== 0) updates.fiat_balance_pence = (wallet.fiat_balance_pence || 0) + amountPence;
+    if (amountLeus !== 0) updates.leus_balance = Number(wallet.leus_balance || 0) + amountLeus;
+    if (Object.keys(updates).length === 0) return;
+
+    const { error: updateError } = await supabase.from("profiles").update(updates).eq("id", userId);
+    if (updateError) throw updateError;
+  };
+
   const fetchData = async () => {
     setLoading(true);
     try {
@@ -72,12 +89,12 @@ export function Bookings() {
     try {
       const { data: existing } = await supabase.from("conversations").select("id")
         .eq("client_id", booking.client_id).eq("provider_id", booking.provider_id).maybeSingle();
-      if (existing) { navigate(`/home/messages/${existing.id}`); return; }
+      if (existing) { navigate(`/home/conversation/${existing.id}`); return; }
       const { data: newConv, error } = await supabase.from("conversations")
         .insert({ client_id: booking.client_id, provider_id: booking.provider_id, last_message_at: new Date().toISOString() })
         .select("id").single();
       if (error) throw error;
-      navigate(`/home/messages/${newConv.id}`);
+      navigate(`/home/conversation/${newConv.id}`);
     } catch (err) { console.error(err); }
   };
 
@@ -116,11 +133,17 @@ export function Bookings() {
     setActionLoading(bookingId);
     try {
       const booking = bookings.find(b => b.id === bookingId);
-      if ((booking?.deposit_pence || 0) > 0) {
-        const { data: cp } = await supabase.from("profiles").select("fiat_balance_pence").eq("id", booking.client_id).single();
-        if (cp) await supabase.from("profiles").update({ fiat_balance_pence: (cp.fiat_balance_pence || 0) + booking.deposit_pence }).eq("id", booking.client_id);
+      if (!booking) throw new Error("Booking not found.");
+      await creditBookingAmount(booking.client_id, booking.deposit_pence || 0, Number(booking.deposit_leus || 0));
+      const { error } = await supabase.from("bookings").update({
+        status: "cancelled",
+        cancelled_by: "provider",
+        cancellation_reason: "Declined by provider",
+      }).eq("id", bookingId);
+      if (error) {
+        await creditBookingAmount(booking.client_id, -(booking.deposit_pence || 0), -Number(booking.deposit_leus || 0));
+        throw error;
       }
-      await supabase.from("bookings").update({ status: "cancelled", cancelled_by: "provider", cancellation_reason: "Declined by provider" }).eq("id", bookingId);
       fetchData();
     } catch (err) { console.error(err); } finally { setActionLoading(null); }
   };
@@ -130,14 +153,23 @@ export function Bookings() {
     setActionLoading(bookingId);
     try {
       const booking = bookings.find(b => b.id === bookingId);
+      if (!booking) throw new Error("Booking not found.");
       const depositPence = booking?.deposit_pence || 0;
+      const depositLeus  = Number(booking?.deposit_leus || 0);
       const refundPence  = Math.round(depositPence * 0.8);
+      const refundLeus   = Number((depositLeus * 0.8).toFixed(2));
       const feePence     = depositPence - refundPence;
-      if (depositPence > 0) {
-        const { data: cp } = await supabase.from("profiles").select("fiat_balance_pence").eq("id", booking.client_id).single();
-        if (cp) await supabase.from("profiles").update({ fiat_balance_pence: (cp.fiat_balance_pence || 0) + refundPence }).eq("id", booking.client_id);
+      await creditBookingAmount(booking.client_id, refundPence, refundLeus);
+      const { error } = await supabase.from("bookings").update({
+        status: "cancelled",
+        cancelled_by: "client",
+        cancellation_fee_pence: feePence,
+        cancellation_reason: "Cancelled by client",
+      }).eq("id", bookingId);
+      if (error) {
+        await creditBookingAmount(booking.client_id, -refundPence, -refundLeus);
+        throw error;
       }
-      await supabase.from("bookings").update({ status: "cancelled", cancelled_by: "client", cancellation_fee_pence: feePence, cancellation_reason: "Cancelled by client" }).eq("id", bookingId);
       fetchData();
     } catch (err) { console.error(err); } finally { setActionLoading(null); }
   };
@@ -147,13 +179,19 @@ export function Bookings() {
     setActionLoading(bookingId);
     try {
       const booking = bookings.find(b => b.id === bookingId);
-      if ((booking?.deposit_pence || 0) > 0) {
-        const { data: cp } = await supabase.from("profiles").select("fiat_balance_pence").eq("id", booking.client_id).single();
-        if (cp) await supabase.from("profiles").update({ fiat_balance_pence: (cp.fiat_balance_pence || 0) + booking.deposit_pence }).eq("id", booking.client_id);
-      }
+      if (!booking) throw new Error("Booking not found.");
+      await creditBookingAmount(booking.client_id, booking.deposit_pence || 0, Number(booking.deposit_leus || 0));
       const { data: pp } = await supabase.from("profiles").select("loyalty_points").eq("id", profile.id).single();
       if (pp) await supabase.from("profiles").update({ loyalty_points: Math.max(0, (pp.loyalty_points || 0) - 10) }).eq("id", profile.id);
-      await supabase.from("bookings").update({ status: "cancelled", cancelled_by: "provider", cancellation_reason: "Cancelled by provider" }).eq("id", bookingId);
+      const { error } = await supabase.from("bookings").update({
+        status: "cancelled",
+        cancelled_by: "provider",
+        cancellation_reason: "Cancelled by provider",
+      }).eq("id", bookingId);
+      if (error) {
+        await creditBookingAmount(booking.client_id, -(booking.deposit_pence || 0), -Number(booking.deposit_leus || 0));
+        throw error;
+      }
       fetchData();
     } catch (err) { console.error(err); } finally { setActionLoading(null); }
   };
@@ -189,18 +227,83 @@ export function Bookings() {
     setActionLoading(bookingId);
     try {
       const booking = bookings.find(b => b.id === bookingId);
-      if (booking?.payment_method === "fiat" && booking?.amount_pence) {
-        const remaining = Math.round(booking.amount_pence * 0.5);
-        const { data: cp } = await supabase.from("profiles").select("fiat_balance_pence").eq("id", booking.client_id).single();
-        if (cp && (cp.fiat_balance_pence || 0) >= remaining) {
-          await supabase.from("profiles").update({ fiat_balance_pence: (cp.fiat_balance_pence || 0) - remaining }).eq("id", booking.client_id);
-          const { data: pp } = await supabase.from("profiles").select("fiat_balance_pence").eq("id", booking.provider_id).single();
-          if (pp) await supabase.from("profiles").update({ fiat_balance_pence: (pp.fiat_balance_pence || 0) + booking.amount_pence }).eq("id", booking.provider_id);
+      let settledFiat = 0;
+      let settledLeus = 0;
+      if (!booking) throw new Error("Booking not found.");
+
+      if (booking.payment_method === "fiat" && booking.amount_pence) {
+        const remaining = Math.round(booking.amount_pence - (booking.deposit_pence || 0));
+        const { data: clientWallet, error: clientError } = await supabase
+          .from("profiles")
+          .select("fiat_balance_pence")
+          .eq("id", booking.client_id)
+          .single();
+        if (clientError) throw clientError;
+        if ((clientWallet?.fiat_balance_pence || 0) < remaining) {
+          throw new Error("Client does not have enough GBP balance to complete this booking.");
+        }
+
+        const { error: deductError } = await supabase
+          .from("profiles")
+          .update({ fiat_balance_pence: (clientWallet?.fiat_balance_pence || 0) - remaining })
+          .eq("id", booking.client_id);
+        if (deductError) throw deductError;
+
+        try {
+          await creditBookingAmount(booking.provider_id, booking.amount_pence || 0, 0);
+          settledFiat = remaining;
+        } catch (error) {
+          await creditBookingAmount(booking.client_id, remaining, 0);
+          throw error;
+        }
+      } else if (booking.payment_method === "leus" && booking.amount_leus) {
+        const remainingLeus = Number((Number(booking.amount_leus) - Number(booking.deposit_leus || 0)).toFixed(2));
+        const { data: clientWallet, error: clientError } = await supabase
+          .from("profiles")
+          .select("leus_balance")
+          .eq("id", booking.client_id)
+          .single();
+        if (clientError) throw clientError;
+        if (Number(clientWallet?.leus_balance || 0) < remainingLeus) {
+          throw new Error("Client does not have enough LEUS balance to complete this booking.");
+        }
+
+        const { error: deductError } = await supabase
+          .from("profiles")
+          .update({ leus_balance: Number(clientWallet?.leus_balance || 0) - remainingLeus })
+          .eq("id", booking.client_id);
+        if (deductError) throw deductError;
+
+        try {
+          await creditBookingAmount(booking.provider_id, 0, Number(booking.amount_leus || 0));
+          settledLeus = remainingLeus;
+        } catch (error) {
+          await creditBookingAmount(booking.client_id, 0, remainingLeus);
+          throw error;
         }
       }
-      await supabase.from("bookings").update({ status: "completed", completed_at: new Date().toISOString(), escrow_released: true }).eq("id", bookingId);
+
+      const { error: bookingError } = await supabase.from("bookings").update({
+        status: "completed",
+        completed_at: new Date().toISOString(),
+        escrow_released: true,
+      }).eq("id", bookingId);
+      if (bookingError) {
+        if (settledFiat > 0) {
+          await creditBookingAmount(booking.client_id, settledFiat, 0);
+          await creditBookingAmount(booking.provider_id, -(booking.amount_pence || 0), 0);
+        }
+        if (settledLeus > 0) {
+          await creditBookingAmount(booking.client_id, 0, settledLeus);
+          await creditBookingAmount(booking.provider_id, 0, -Number(booking.amount_leus || 0));
+        }
+        throw bookingError;
+      }
       fetchData();
-    } catch (err) { console.error(err); } finally { setActionLoading(null); }
+    } catch (err: any) {
+      console.error(err);
+      alert(err?.message || "Failed to complete booking.");
+    } finally { setActionLoading(null); }
   };
 
   const isProvider        = profile?.role === "provider" || profile?.role === "local_business";

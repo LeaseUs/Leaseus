@@ -1,7 +1,6 @@
 import { useNavigate } from "react-router";
 import { motion } from "motion/react";
 import { Building2 } from "lucide-react";
-import bgImage from "../../assets/background.png";
 
 export function Splash() {
   const navigate = useNavigate();
@@ -20,15 +19,7 @@ export function Splash() {
   };
 
   return (
-    <div
-      className="min-h-screen flex flex-col items-center justify-between px-6 py-8 max-w-md mx-auto relative overflow-hidden"
-      style={{
-        backgroundImage: `url(${bgImage})`,
-        backgroundSize: 'cover',
-        backgroundPosition: 'center',
-        backgroundRepeat: 'no-repeat'
-      }}
-    >
+    <div className="leaseus-auth-screen min-h-screen flex flex-col items-center justify-between px-6 py-8 max-w-md mx-auto">
       {/* Spacer */}
       <div style={{ flex: '0 0 60vh' }}></div>
 

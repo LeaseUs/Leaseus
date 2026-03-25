@@ -15,8 +15,8 @@ const SUGGESTIONS = [
   "What is MintLeaf?",
 ];
 
-export function AIChatWidget() {
-  const [open, setOpen] = useState(false);
+export function AIChatWidget({ defaultOpen = false }: { defaultOpen?: boolean }) {
+  const [open, setOpen] = useState(defaultOpen);
   const [messages, setMessages] = useState<Message[]>([
     { role: "assistant", content: "Hi! I'm your LeaseUs AI assistant powered by Claude. How can I help you today?" },
   ]);

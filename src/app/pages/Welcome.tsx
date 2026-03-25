@@ -2,7 +2,6 @@ import { useState } from "react";
 import { useNavigate } from "react-router";
 import { motion, AnimatePresence } from "motion/react";
 import { Shield, Zap, Sparkles, Gift, ChevronRight } from "lucide-react";
-import bgImage from "../../assets/background.png";
 
 export function Welcome() {
   const navigate = useNavigate();
@@ -43,26 +42,20 @@ export function Welcome() {
     if (currentSlide < slides.length - 1) {
       setCurrentSlide(currentSlide + 1);
     } else {
+      localStorage.setItem("hasSeenWelcome", "true");
       navigate("/signup");
     }
   };
 
   const handleSkip = () => {
+    localStorage.setItem("hasSeenWelcome", "true");
     navigate("/login");
   };
 
   return (
-    <div 
-      className="min-h-screen flex flex-col items-center justify-between px-6 py-8 max-w-md mx-auto relative overflow-hidden"
-      style={{
-        backgroundImage: `url(${bgImage})`,
-        backgroundSize: 'cover',
-        backgroundPosition: 'center',
-        backgroundRepeat: 'no-repeat'
-      }}
-    >
+    <div className="leaseus-auth-screen min-h-screen flex flex-col items-center justify-between px-6 py-8 max-w-md mx-auto">
       {/* Backdrop Blur Overlay */}
-      <div className="absolute inset-0 backdrop-blur-md bg-white/20"></div>
+      <div className="leaseus-auth-overlay absolute inset-0"></div>
 
       {/* Slides */}
       <div className="flex-1 flex items-center justify-center w-full relative z-10 pt-20">

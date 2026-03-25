@@ -295,16 +295,31 @@ export function AdminPartners() {
                 )}
 
                 {filter === "approved" && (
-                  <div className="flex items-center gap-2 text-[#10B981] text-sm">
-                    <CheckCircle className="w-4 h-4" />
-                    <span>Approved — visible on map</span>
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2 text-[#10B981] text-sm">
+                      <CheckCircle className="w-4 h-4" />
+                      <span>Approved — visible on map</span>
+                    </div>
+                    <button onClick={() => setSelected(app)}
+                      className="w-full border border-red-300 text-red-500 py-2.5 rounded-xl text-sm hover:bg-red-50 transition-colors flex items-center justify-center gap-1">
+                      <XCircle className="w-4 h-4" />Reject Manually
+                    </button>
                   </div>
                 )}
 
                 {filter === "rejected" && (
-                  <div className="text-sm text-red-500">
-                    <span className="font-medium">Rejected: </span>
-                    <span>{app.rejection_reason}</span>
+                  <div className="space-y-3">
+                    <div className="text-sm text-red-500">
+                      <span className="font-medium">Rejected: </span>
+                      <span>{app.rejection_reason}</span>
+                    </div>
+                    <button onClick={() => handleApprove(app)}
+                      disabled={actionLoading === app.id}
+                      className="w-full bg-[#10B981] text-white py-2.5 rounded-xl text-sm hover:bg-[#0d9668] transition-colors flex items-center justify-center gap-1 disabled:opacity-70">
+                      {actionLoading === app.id
+                        ? <Loader2 className="w-4 h-4 animate-spin" />
+                        : <><CheckCircle className="w-4 h-4" />Approve Manually</>}
+                    </button>
                   </div>
                 )}
               </div>

@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router";
 import { Eye, EyeOff, CheckCircle, Loader2 } from "lucide-react";
-import bgImage from "../../assets/background.png";
+import { fetchAuthBootstrap, resolvePostAuthDestination } from "../../lib/authBootstrap";
 import { supabase } from "../../lib/supabase";
 
 export function Signup() {
@@ -76,10 +76,13 @@ export function Signup() {
       }
 
       if (data.user) {
-        // Create user profile
+        // Determine status based on role
+        const status = role === "provider" ? "pending" : "active";
+
+        // Create user profile with status column
         const { error: profileError } = await supabase
           .from('profiles')
-          .insert({
+          .upsert({
             id: data.user.id,
             full_name: name,
             email: email,
@@ -89,10 +92,12 @@ export function Signup() {
             fiat_balance_pence: 0,
             leus_balance: 0,
             loyalty_points: 0,
-          });
+            status: status,
+          }, { onConflict: "id" });
 
         if (profileError) {
           console.error('Profile creation error:', profileError);
+          throw profileError;
         }
 
         // Award signup bonus
@@ -104,9 +109,25 @@ export function Signup() {
           console.error('Signup bonus error:', bonusError);
         }
 
-        // Show success message — user needs to verify email
+        // After successful signup, check if we have a session (user is logged in)
+        const { data: sessionData } = await supabase.auth.getSession();
+        const hasSession = !!sessionData?.session;
+
+        if (hasSession) {
+          localStorage.setItem("isLoggedIn", "true");
+          const bootstrap = await fetchAuthBootstrap(data.user.id);
+          navigate(resolvePostAuthDestination(bootstrap), {
+            replace: true,
+            state: { authBootstrap: bootstrap },
+          });
+          return;
+        }
+
+        // If email confirmation is required, tell the user what happens next.
         setSuccess(
-          `Account created! 🎉 We've sent a verification email to ${email}. Please check your inbox to verify your account and claim your 50 LEUS bonus!`
+          role === "provider"
+            ? `Provider account created! We've sent a verification email to ${email}. After you verify and sign in, we'll take you straight into onboarding and KYC.`
+            : `Account created! We've sent a verification email to ${email}. Once you verify and sign in, you'll go straight to your home dashboard.`
         );
 
         // Clear form
@@ -129,17 +150,9 @@ export function Signup() {
   };
 
   return (
-    <div
-      className="min-h-screen flex flex-col items-center justify-center px-6 py-8 max-w-md mx-auto relative overflow-hidden"
-      style={{
-        backgroundImage: `url(${bgImage})`,
-        backgroundSize: "cover",
-        backgroundPosition: "center",
-        backgroundRepeat: "no-repeat",
-      }}
-    >
+    <div className="leaseus-auth-screen min-h-screen flex flex-col items-center justify-center px-6 py-8 max-w-md mx-auto">
       {/* Backdrop Blur Overlay */}
-      <div className="absolute inset-0 backdrop-blur-md bg-white/20"></div>
+      <div className="leaseus-auth-overlay absolute inset-0"></div>
 
       {/* Bonus Badge */}
       {showBonus && (
@@ -150,7 +163,7 @@ export function Signup() {
       )}
 
       {/* Signup Form */}
-      <div className="w-full bg-white/90 backdrop-blur-lg rounded-2xl p-6 shadow-xl relative z-10 border border-white/50">
+      <div className="leaseus-auth-card w-full rounded-2xl p-6 relative z-10">
         <h2 className="text-3xl font-bold text-[#1E3A8A] mb-2 text-center" style={{ fontFamily: 'Syne, sans-serif' }}>
           Create Account
         </h2>
@@ -345,5 +358,3 @@ export function Signup() {
     </div>
   );
 }
-
-

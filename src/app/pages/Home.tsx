@@ -8,15 +8,15 @@ import {
   Dumbbell, ChefHat, PawPrint, Shield, Shirt, MessageCircle,
   BarChart2, Award, Hammer, Package, Eye, EyeOff,
 } from "lucide-react";
-import mapboxgl from "mapbox-gl";
-import "mapbox-gl/dist/mapbox-gl.css";
 import mintleafLogo from "../../assets/mintleaf-logo.png";
 import leaseUsLogo  from "../../assets/logo.png";
 import { supabase } from "../../lib/supabase";
 
-mapboxgl.accessToken = import.meta.env.VITE_MAPBOX_TOKEN;
 const LEASEUS_MAP_STYLE = "mapbox://styles/mapbox/light-v11";
 type MapFilter = "all" | "providers" | "partners";
+type MapboxModule = typeof import("mapbox-gl")["default"];
+type MapboxMap = import("mapbox-gl").Map;
+type MapboxMarker = import("mapbox-gl").Marker;
 
 export function Home() {
   const navigate = useNavigate();
@@ -46,9 +46,10 @@ export function Home() {
   const mask = "••••••";
 
   const mapContainer = useRef<HTMLDivElement>(null);
-  const map          = useRef<mapboxgl.Map | null>(null);
-  const markersRef   = useRef<mapboxgl.Marker[]>([]);
-  const pulseRef     = useRef<mapboxgl.Marker | null>(null);
+  const mapboxRef    = useRef<MapboxModule | null>(null);
+  const map          = useRef<MapboxMap | null>(null);
+  const markersRef   = useRef<MapboxMarker[]>([]);
+  const pulseRef     = useRef<MapboxMarker | null>(null);
 
   const categories = [
     { icon: HomeIcon,      label: "Cleaning",          color: "bg-blue-100 text-blue-600" },
@@ -87,7 +88,7 @@ export function Home() {
     const isProvider = profile?.role === "provider" || profile?.role === "local_business";
     if (isProvider) return;
     if (map.current) return;
-    initMap();
+    void initMap();
     return () => { map.current?.remove(); map.current = null; };
   }, [loading]);
 
@@ -95,6 +96,19 @@ export function Home() {
     if (!map.current) return;
     renderMarkers();
   }, [mapFilter, nearbyBusinesses, nearbyProviders]);
+
+  const ensureMapbox = async () => {
+    if (mapboxRef.current) return mapboxRef.current;
+
+    const [{ default: mapboxgl }] = await Promise.all([
+      import("mapbox-gl"),
+      import("mapbox-gl/dist/mapbox-gl.css"),
+    ]);
+
+    mapboxgl.accessToken = import.meta.env.VITE_MAPBOX_TOKEN;
+    mapboxRef.current = mapboxgl;
+    return mapboxgl;
+  };
 
   const fetchProviderStats = async (userId: string) => {
     try {
@@ -124,11 +138,12 @@ export function Home() {
     } catch (err) { console.error(err); }
   };
 
-  const initMap = () => {
-    if (!navigator.geolocation) { setupMap(-0.1276, 51.5074); return; }
+  const initMap = async () => {
+    await ensureMapbox();
+    if (!navigator.geolocation) { void setupMap(-0.1276, 51.5074); return; }
     navigator.geolocation.getCurrentPosition(
       ({ coords }) => {
-        setupMap(coords.longitude, coords.latitude);
+        void setupMap(coords.longitude, coords.latitude);
         navigator.geolocation.watchPosition(
           ({ coords: updated }) => {
             if (!pulseRef.current) return;
@@ -139,13 +154,14 @@ export function Home() {
           { enableHighAccuracy: true, maximumAge: 5000, timeout: 10000 }
         );
       },
-      () => { setupMap(-0.1276, 51.5074); setMapLoading(false); },
+      () => { void setupMap(-0.1276, 51.5074); setMapLoading(false); },
       { enableHighAccuracy: true, maximumAge: 0, timeout: 15000 }
     );
   };
 
   const setupMap = async (lng: number, lat: number) => {
     if (!mapContainer.current) return;
+    const mapboxgl = await ensureMapbox();
     setUserCoords([lng, lat]);
 
     map.current = new mapboxgl.Map({
@@ -192,7 +208,8 @@ export function Home() {
   };
 
   const renderMarkers = () => {
-    if (!map.current) return;
+    if (!map.current || !mapboxRef.current) return;
+    const mapboxgl = mapboxRef.current;
     markersRef.current.forEach(m => m.remove());
     markersRef.current = [];
 
@@ -237,38 +254,61 @@ export function Home() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) { navigate("/login"); return; }
 
-      const { data: profileData } = await supabase.from("profiles").select("*").eq("id", user.id).single();
-      setProfile(profileData);
+      const [
+        { data: profileData },
+        { count },
+      ] = await Promise.all([
+        supabase.from("profiles").select("*").eq("id", user.id).single(),
+        supabase.from("notifications").select("*", { count: "exact", head: true }).eq("user_id", user.id).eq("is_read", false),
+      ]);
 
-      const { count } = await supabase.from("notifications").select("*", { count: "exact", head: true }).eq("user_id", user.id).eq("is_read", false);
+      setProfile(profileData);
       setNotifications(count || 0);
+      setLoading(false);
 
       const isProvider = profileData?.role === "provider" || profileData?.role === "local_business";
 
       if (isProvider) {
-        const { data: bookingData } = await supabase.from("bookings")
+        const bookingPromise = supabase.from("bookings")
           .select("id, title, scheduled_at, payment_method, amount_pence, amount_leus, client:profiles!client_id(full_name)")
-          .eq("provider_id", user.id).eq("status", "pending")
-          .order("created_at", { ascending: false }).limit(3);
-        setPendingBookings(bookingData || []);
-        await fetchProviderStats(user.id);
+          .eq("provider_id", user.id)
+          .eq("status", "pending")
+          .order("created_at", { ascending: false })
+          .limit(3);
+
+        bookingPromise.then(({ data }) => {
+          setPendingBookings(data || []);
+        }).catch(() => {
+          setPendingBookings([]);
+        });
+        fetchProviderStats(user.id);
       } else {
-        const { data: listingsData } = await supabase.from("listings")
+        const listingPromise = supabase.from("listings")
           .select(`id, title, price_pence, price_type, accepts_leus, profiles!provider_id(full_name, avg_rating), listing_images(url, is_primary)`)
-          .eq("status", "active").limit(3);
-        if (listingsData && listingsData.length > 0) {
-          setFeaturedServices(listingsData.map((item: any) => ({
-            id: item.id, title: item.title,
-            provider_name: item.profiles?.full_name || "Unknown",
-            avg_rating: item.profiles?.avg_rating || 0,
-            price_pence: item.price_pence, price_type: item.price_type,
-            accepts_leus: item.accepts_leus,
-            image: item.listing_images?.find((img: any) => img.is_primary)?.url || item.listing_images?.[0]?.url || "https://images.unsplash.com/photo-1581578731548-c64695cc6952?w=400&h=300&fit=crop",
-          })));
-        } else { setFeaturedServices(mockServices); }
+          .eq("status", "active")
+          .limit(3);
+
+        listingPromise.then(({ data: listingsData }) => {
+          if (listingsData && listingsData.length > 0) {
+            setFeaturedServices(listingsData.map((item: any) => ({
+              id: item.id, title: item.title,
+              provider_name: item.profiles?.full_name || "Unknown",
+              avg_rating: item.profiles?.avg_rating || 0,
+              price_pence: item.price_pence, price_type: item.price_type,
+              accepts_leus: item.accepts_leus,
+              image: item.listing_images?.find((img: any) => img.is_primary)?.url || item.listing_images?.[0]?.url || "https://images.unsplash.com/photo-1581578731548-c64695cc6952?w=400&h=300&fit=crop",
+            })));
+          } else {
+            setFeaturedServices(mockServices);
+          }
+        }).catch(() => {
+          setFeaturedServices(mockServices);
+        });
       }
-    } catch (err) { setFeaturedServices(mockServices); }
-    finally { setLoading(false); }
+    } catch (err) {
+      setFeaturedServices(mockServices);
+      setLoading(false);
+    }
   };
 
   const formatPrice = (pence: number, type: string) => `£${pence / 100}${type === "hourly" ? "/hr" : ""}`;

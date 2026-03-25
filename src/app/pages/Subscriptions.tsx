@@ -88,7 +88,7 @@ export function Subscriptions() {
 
       const { data: profileData } = await supabase
         .from("profiles")
-        .select("id, full_name, subscription_tier, subscription_expires_at, fiat_balance_pence, leus_balance, created_at")
+        .select("id, full_name, subscription_tier, subscription_expires_at, subscription_paid_with, fiat_balance_pence, leus_balance, created_at")
         .eq("id", user.id)
         .single();
 
@@ -128,7 +128,7 @@ export function Subscriptions() {
         }
       } else {
         if (Number(profile.leus_balance) < selectedTier.priceLeus) {
-          setError(`Insufficient LEUS balance. You need <span className="leus">ᛃ</span>${selectedTier.priceLeus} but have <span className="leus">ᛃ</span>${Number(profile.leus_balance).toFixed(2)}.`);
+          setError(`Insufficient LEUS balance. You need ᛃ${selectedTier.priceLeus} but have ᛃ${Number(profile.leus_balance).toFixed(2)}.`);
           setUpgrading(null);
           return;
         }
@@ -137,43 +137,63 @@ export function Subscriptions() {
       const now = new Date();
       const periodEnd = new Date(now);
       periodEnd.setMonth(periodEnd.getMonth() + 1);
+      const originalProfile = {
+        fiat_balance_pence: profile.fiat_balance_pence,
+        leus_balance: Number(profile.leus_balance),
+        subscription_tier: profile.subscription_tier,
+        subscription_expires_at: profile.subscription_expires_at,
+        subscription_paid_with: profile.subscription_paid_with || null,
+      };
 
       // Deduct balance
       if (paymentMethod === "fiat") {
-        await supabase.from("profiles").update({
+        const { error: updateError } = await supabase.from("profiles").update({
           fiat_balance_pence: profile.fiat_balance_pence - selectedTier.pricePence,
           subscription_tier: selectedTier.name,
           subscription_expires_at: periodEnd.toISOString(),
           subscription_paid_with: "fiat",
         }).eq("id", user.id);
+        if (updateError) throw updateError;
       } else {
-        await supabase.from("profiles").update({
+        const { error: updateError } = await supabase.from("profiles").update({
           leus_balance: Number(profile.leus_balance) - selectedTier.priceLeus,
           subscription_tier: selectedTier.name,
           subscription_expires_at: periodEnd.toISOString(),
           subscription_paid_with: "leus",
         }).eq("id", user.id);
+        if (updateError) throw updateError;
       }
 
-      // Log payment
-      await supabase.from("subscription_payments").insert({
-        user_id: user.id,
-        tier: selectedTier.name,
-        payment_method: paymentMethod,
-        amount_pence: paymentMethod === "fiat" ? selectedTier.pricePence : null,
-        amount_leus: paymentMethod === "leus" ? selectedTier.priceLeus : null,
-        period_start: now.toISOString(),
-        period_end: periodEnd.toISOString(),
-      });
+      try {
+        const { error: paymentError } = await supabase.from("subscription_payments").insert({
+          user_id: user.id,
+          tier: selectedTier.name,
+          payment_method: paymentMethod,
+          amount_pence: paymentMethod === "fiat" ? selectedTier.pricePence : null,
+          amount_leus: paymentMethod === "leus" ? selectedTier.priceLeus : null,
+          period_start: now.toISOString(),
+          period_end: periodEnd.toISOString(),
+        });
+        if (paymentError) throw paymentError;
 
-      // Log wallet transaction
-      await supabase.from("wallet_transactions").insert({
-        user_id: user.id,
-        type: "subscription_fee",
-        fiat_delta_pence: paymentMethod === "fiat" ? -selectedTier.pricePence : 0,
-        leus_delta: paymentMethod === "leus" ? -selectedTier.priceLeus : 0,
-        reference: `${selectedTier.label} subscription`,
-      });
+        const { error: walletError } = await supabase.from("wallet_transactions").insert({
+          user_id: user.id,
+          type: "subscription_fee",
+          fiat_delta_pence: paymentMethod === "fiat" ? -selectedTier.pricePence : 0,
+          leus_delta: paymentMethod === "leus" ? -selectedTier.priceLeus : 0,
+          reference: `${selectedTier.label} subscription`,
+        });
+        if (walletError) throw walletError;
+      } catch (error) {
+        await supabase.from("profiles").update({
+          fiat_balance_pence: originalProfile.fiat_balance_pence,
+          leus_balance: originalProfile.leus_balance,
+          subscription_tier: originalProfile.subscription_tier,
+          subscription_expires_at: originalProfile.subscription_expires_at,
+          subscription_paid_with: originalProfile.subscription_paid_with,
+        }).eq("id", user.id);
+        throw error;
+      }
 
       setSuccess(`🎉 Successfully upgraded to ${selectedTier.label}!`);
       setSelectedTier(null);

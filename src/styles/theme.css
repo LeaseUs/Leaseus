@@ -44,6 +44,7 @@
   --leaseus-blue: #1E3A8A;
   --leaseus-green: #10B981;
   --leaseus-cyan: #14B8A6;
+  --leaseus-app-background: url("../assets/background-optimized.jpg");
 }
 
 .dark {
@@ -132,6 +133,52 @@
   body {
     @apply bg-background text-foreground;
     font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+  }
+
+  .leaseus-app-background {
+    background-image:
+      linear-gradient(180deg, rgba(248, 250, 252, 0.18) 0%, rgba(241, 245, 249, 0.28) 100%),
+      var(--leaseus-app-background);
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+  }
+
+  .leaseus-app-shell {
+    position: relative;
+    overflow: hidden;
+    background-image:
+      linear-gradient(180deg, rgba(248, 250, 252, 0.18) 0%, rgba(241, 245, 249, 0.28) 100%),
+      var(--leaseus-app-background);
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+  }
+
+  .leaseus-auth-screen {
+    position: relative;
+    overflow: hidden;
+    background-image:
+      linear-gradient(180deg, rgba(248, 250, 252, 0.18) 0%, rgba(241, 245, 249, 0.28) 100%),
+      var(--leaseus-app-background);
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+  }
+
+  .leaseus-auth-overlay {
+    background:
+      linear-gradient(180deg, rgba(255, 255, 255, 0.16) 0%, rgba(255, 255, 255, 0.28) 100%);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+  }
+
+  .leaseus-auth-card {
+    background: rgba(255, 255, 255, 0.88);
+    backdrop-filter: blur(18px);
+    -webkit-backdrop-filter: blur(18px);
+    border: 1px solid rgba(255, 255, 255, 0.5);
+    box-shadow: 0 20px 50px rgba(15, 23, 42, 0.12);
   }
 
   /* Hide scrollbars globally */

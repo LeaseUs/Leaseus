@@ -149,23 +149,31 @@ function WithdrawForm({ fiatBalance, onSuccess, onCancel }: { fiatBalance: numbe
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Not logged in.");
 
-      // Log withdrawal request in DB
+      const amountPence = Math.round(Number(amount) * 100);
+
+      const { error: deductError } = await supabase.rpc("deduct_fiat_wallet", {
+        p_user_id: user.id,
+        p_pence: amountPence,
+        p_notes: `Withdrawal request £${amount}`,
+      });
+      if (deductError) throw deductError;
+
       const { error: txError } = await supabase.from("withdrawal_requests").insert({
         user_id: user.id,
-        amount_pence: Math.round(Number(amount) * 100),
+        amount_pence: amountPence,
         account_name: accountName,
         sort_code: sortCode,
         account_number: accountNo,
         status: "pending",
       });
-      if (txError) throw txError;
-
-      // Deduct from wallet
-      await supabase.rpc("deduct_fiat_wallet", {
-        p_user_id: user.id,
-        p_pence: Math.round(Number(amount) * 100),
-        p_notes: `Withdrawal request £${amount}`,
-      });
+      if (txError) {
+        await supabase.rpc("credit_fiat_wallet", {
+          p_user_id: user.id,
+          p_pence: amountPence,
+          p_notes: `Withdrawal rollback £${amount}`,
+        });
+        throw txError;
+      }
 
       onSuccess();
     } catch (err: any) {
