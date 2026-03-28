@@ -35,5 +35,3 @@ export function ZebraPattern({ opacity = 0.05, className = "" }: ZebraPatternPro
     </div>
   );
 }
-
-

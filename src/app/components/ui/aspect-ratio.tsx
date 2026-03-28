@@ -9,5 +9,3 @@ function AspectRatio({
 }
 
 export { AspectRatio };
-
-

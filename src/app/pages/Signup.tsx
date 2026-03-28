@@ -1,184 +1,56 @@
 import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router";
-import { Eye, EyeOff, CheckCircle, Loader2 } from "lucide-react";
-import { fetchAuthBootstrap, resolvePostAuthDestination } from "../../lib/authBootstrap";
-import { supabase } from "../../lib/supabase";
+import { Eye, EyeOff, CheckCircle } from "lucide-react";
+import bgImage from "figma:asset/26efaf54209cf3936abcb1e97f9969d980464042.png";
 
 export function Signup() {
   const navigate = useNavigate();
   const [showPassword, setShowPassword] = useState(false);
   const [showBonus, setShowBonus] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
-  const [success, setSuccess] = useState("");
   const [formData, setFormData] = useState({
     name: "",
     email: "",
     phone: "",
     password: "",
     confirmPassword: "",
-    role: "client", // client or provider
-    referralCode: "",
   });
 
   useEffect(() => {
+    // Check if user came from the bonus button
     const claimBonus = localStorage.getItem("claimBonus");
     if (claimBonus === "true") {
       setShowBonus(true);
-      localStorage.removeItem("claimBonus");
+      localStorage.removeItem("claimBonus"); // Clear it after checking
     }
   }, []);
 
-  useEffect(() => {
-    let mounted = true;
-
-    const redirectAuthenticatedUser = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!mounted || !session?.user) return;
-
-      localStorage.setItem("isLoggedIn", "true");
-      const bootstrap = await fetchAuthBootstrap(session.user.id);
-      if (!mounted) return;
-
-      navigate(resolvePostAuthDestination(bootstrap), {
-        replace: true,
-        state: { authBootstrap: bootstrap },
-      });
-    };
-
-    void redirectAuthenticatedUser();
-
-    return () => {
-      mounted = false;
-    };
-  }, [navigate]);
-
-  const handleSignup = async (e: React.FormEvent) => {
+  const handleSignup = (e: React.FormEvent) => {
     e.preventDefault();
-    setError("");
-    setSuccess("");
-
-    const { name, email, phone, password, confirmPassword, role, referralCode } = formData;
-
-    // Validate passwords match
+    const { password, confirmPassword } = formData;
     if (password !== confirmPassword) {
-      setError("Passwords don't match!");
+      alert("Passwords don't match!");
       return;
     }
-
-    // Validate password strength
-    if (password.length < 8) {
-      setError("Password must be at least 8 characters.");
-      return;
-    }
-
-    setLoading(true);
-
-    try {
-      // Sign up with Supabase Auth
-      const { data, error: signUpError } = await supabase.auth.signUp({
-        email,
-        password,
-        options: {
-          data: {
-            full_name: name,
-            phone,
-            role,
-            referral_code: referralCode || null,
-          },
-          emailRedirectTo: `${window.location.origin}/login`,
-        },
-      });
-
-      if (signUpError) {
-        if (signUpError.message.includes("already registered")) {
-          setError("This email is already registered. Please sign in instead.");
-        } else {
-          setError(signUpError.message);
-        }
-        return;
-      }
-
-      if (data.user) {
-        // Determine status based on role
-        const status = role === "provider" ? "pending" : "active";
-
-        // Create user profile with status column
-        const { error: profileError } = await supabase
-          .from('profiles')
-          .upsert({
-            id: data.user.id,
-            full_name: name,
-            email: email,
-            phone: phone,
-            role: role,
-            referral_code: referralCode || null,
-            fiat_balance_pence: 0,
-            leus_balance: 0,
-            loyalty_points: 0,
-            status: status,
-          }, { onConflict: "id" });
-
-        if (profileError) {
-          console.error('Profile creation error:', profileError);
-          throw profileError;
-        }
-
-        // Award signup bonus
-        try {
-          await supabase.rpc('award_signup_bonus', {
-            p_user_id: data.user.id
-          });
-        } catch (bonusError) {
-          console.error('Signup bonus error:', bonusError);
-        }
-
-        // After successful signup, check if we have a session (user is logged in)
-        const { data: sessionData } = await supabase.auth.getSession();
-        const hasSession = !!sessionData?.session;
-
-        if (hasSession) {
-          localStorage.setItem("isLoggedIn", "true");
-          const bootstrap = await fetchAuthBootstrap(data.user.id);
-          navigate(resolvePostAuthDestination(bootstrap), {
-            replace: true,
-            state: { authBootstrap: bootstrap },
-          });
-          return;
-        }
-
-        // If email confirmation is required, tell the user what happens next.
-        setSuccess(
-          role === "provider"
-            ? `Provider account created! We've sent a verification email to ${email}. After you verify and sign in, we'll take you straight into onboarding and KYC.`
-            : `Account created! We've sent a verification email to ${email}. Once you verify and sign in, you'll go straight to your home dashboard.`
-        );
-
-        // Clear form
-        setFormData({
-          name: "",
-          email: "",
-          phone: "",
-          password: "",
-          confirmPassword: "",
-          role: "client",
-          referralCode: "",
-        });
-      }
-
-    } catch (err) {
-      setError("Something went wrong. Please try again.");
-    } finally {
-      setLoading(false);
-    }
+    // Mock signup - in production, create account with backend
+    localStorage.setItem("isLoggedIn", "true");
+    localStorage.setItem("hasSeenWelcome", "true");
+    navigate("/home");
   };
 
   return (
-    <div className="leaseus-auth-screen min-h-screen flex flex-col items-center justify-center px-6 py-8 max-w-md mx-auto">
+    <div
+      className="min-h-screen flex flex-col items-center justify-center px-6 py-8 max-w-md mx-auto relative overflow-hidden"
+      style={{
+        backgroundImage: `url(${bgImage})`,
+        backgroundSize: "cover",
+        backgroundPosition: "center",
+        backgroundRepeat: "no-repeat",
+      }}
+    >
       {/* Backdrop Blur Overlay */}
-      <div className="leaseus-auth-overlay absolute inset-0"></div>
+      <div className="absolute inset-0 backdrop-blur-md bg-white/20"></div>
 
-      {/* Bonus Badge */}
+      {/* Bonus Badge - Only show if coming from bonus button */}
       {showBonus && (
         <div className="mb-4 bg-white/90 backdrop-blur-sm border-2 border-[#10B981] rounded-full px-4 py-2 flex items-center gap-2 relative z-10">
           <CheckCircle className="w-5 h-5 text-[#10B981]" />
@@ -187,191 +59,114 @@ export function Signup() {
       )}
 
       {/* Signup Form */}
-      <div className="leaseus-auth-card w-full rounded-2xl p-6 relative z-10">
-        <h2 className="text-3xl font-bold text-[#1E3A8A] mb-2 text-center" style={{ fontFamily: 'Syne, sans-serif' }}>
-          Create Account
-        </h2>
-        <p className="text-gray-600 text-center mb-2">Join LeaseUs today</p>
+      <div className="w-full bg-white/90 backdrop-blur-lg rounded-2xl p-6 shadow-xl relative z-10 border border-white/50">
+        <h2 className="text-3xl font-bold text-[#1E3A8A] mb-2 text-center" style={{ fontFamily: 'Syne, sans-serif' }}>Create Account</h2>
+        <p className="text-gray-600 text-center mb-6">
+          Join LeaseUs today
+        </p>
 
-        {/* 50 LEUS bonus reminder */}
-        <div className="mb-4 p-2 bg-[#10B981]/10 border border-[#10B981]/30 rounded-xl text-center">
-          <span className="text-sm text-[#10B981] font-semibold">🎁 Get 50 LEUS free when you sign up!</span>
-        </div>
-
-        {/* Error Message */}
-        {error && (
-          <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-xl text-red-600 text-sm text-center">
-            {error}
+        <form onSubmit={handleSignup} className="space-y-4">
+          {/* Name Input */}
+          <div>
+            <label className="block text-sm text-gray-700 mb-2">Full Name</label>
+            <input
+              type="text"
+              value={formData.name}
+              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+              placeholder="Enter your full name"
+              className="w-full px-4 py-3 bg-gray-50 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#10B981]"
+              required
+            />
           </div>
-        )}
 
-        {/* Success Message */}
-        {success && (
-          <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-xl text-green-700 text-sm text-center">
-            {success}
+          {/* Email Input */}
+          <div>
+            <label className="block text-sm text-gray-700 mb-2">Email</label>
+            <input
+              type="email"
+              value={formData.email}
+              onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+              placeholder="Enter your email"
+              className="w-full px-4 py-3 bg-gray-50 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#10B981]"
+              required
+            />
           </div>
-        )}
 
-        {!success && (
-          <form onSubmit={handleSignup} className="space-y-4">
-            {/* Full Name */}
-            <div>
-              <label className="block text-sm text-gray-700 mb-2">Full Name</label>
+          {/* Phone Input */}
+          <div>
+            <label className="block text-sm text-gray-700 mb-2">Phone Number</label>
+            <input
+              type="tel"
+              value={formData.phone}
+              onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+              placeholder="Enter your phone number"
+              className="w-full px-4 py-3 bg-gray-50 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#10B981]"
+              required
+            />
+          </div>
+
+          {/* Password Input */}
+          <div>
+            <label className="block text-sm text-gray-700 mb-2">Password</label>
+            <div className="relative">
               <input
-                type="text"
-                value={formData.name}
-                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                placeholder="Enter your full name"
+                type={showPassword ? "text" : "password"}
+                value={formData.password}
+                onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                placeholder="Create a password"
                 className="w-full px-4 py-3 bg-gray-50 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#10B981]"
                 required
               />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400"
+              >
+                {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+              </button>
             </div>
+          </div>
 
-            {/* Email */}
-            <div>
-              <label className="block text-sm text-gray-700 mb-2">Email</label>
+          {/* Confirm Password Input */}
+          <div>
+            <label className="block text-sm text-gray-700 mb-2">Confirm Password</label>
+            <div className="relative">
               <input
-                type="email"
-                value={formData.email}
-                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                placeholder="Enter your email"
+                type={showPassword ? "text" : "password"}
+                value={formData.confirmPassword}
+                onChange={(e) => setFormData({ ...formData, confirmPassword: e.target.value })}
+                placeholder="Confirm your password"
                 className="w-full px-4 py-3 bg-gray-50 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#10B981]"
                 required
               />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400"
+              >
+                {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+              </button>
             </div>
+          </div>
 
-            {/* Phone */}
-            <div>
-              <label className="block text-sm text-gray-700 mb-2">Phone Number</label>
-              <input
-                type="tel"
-                value={formData.phone}
-                onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                placeholder="Enter your phone number"
-                className="w-full px-4 py-3 bg-gray-50 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#10B981]"
-                required
-              />
-            </div>
+          {/* Terms */}
+          <div className="flex items-start gap-2">
+            <input type="checkbox" id="terms" className="mt-1" required />
+            <label htmlFor="terms" className="text-xs text-gray-600">
+              I agree to the Terms of Service and Privacy Policy
+            </label>
+          </div>
 
-            {/* Role Selection */}
-            <div>
-              <label className="block text-sm text-gray-700 mb-2">I want to</label>
-              <div className="grid grid-cols-2 gap-3">
-                <button
-                  type="button"
-                  onClick={() => setFormData({ ...formData, role: "client" })}
-                  className={`py-3 rounded-xl border-2 text-sm font-semibold transition-colors ${
-                    formData.role === "client"
-                      ? "border-[#1E3A8A] bg-[#1E3A8A] text-white"
-                      : "border-gray-200 text-gray-600"
-                  }`}
-                >
-                  Hire Services
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setFormData({ ...formData, role: "provider" })}
-                  className={`py-3 rounded-xl border-2 text-sm font-semibold transition-colors ${
-                    formData.role === "provider"
-                      ? "border-[#10B981] bg-[#10B981] text-white"
-                      : "border-gray-200 text-gray-600"
-                  }`}
-                >
-                  Offer Services
-                </button>
-              </div>
-            </div>
-
-            {/* Password */}
-            <div>
-              <label className="block text-sm text-gray-700 mb-2">Password</label>
-              <div className="relative">
-                <input
-                  type={showPassword ? "text" : "password"}
-                  value={formData.password}
-                  onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                  placeholder="Create a password (min 8 chars)"
-                  className="w-full px-4 py-3 bg-gray-50 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#10B981]"
-                  required
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400"
-                >
-                  {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-                </button>
-              </div>
-            </div>
-
-            {/* Confirm Password */}
-            <div>
-              <label className="block text-sm text-gray-700 mb-2">Confirm Password</label>
-              <div className="relative">
-                <input
-                  type={showPassword ? "text" : "password"}
-                  value={formData.confirmPassword}
-                  onChange={(e) => setFormData({ ...formData, confirmPassword: e.target.value })}
-                  placeholder="Confirm your password"
-                  className="w-full px-4 py-3 bg-gray-50 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#10B981]"
-                  required
-                />
-              </div>
-            </div>
-
-            {/* Referral Code (optional) */}
-            <div>
-              <label className="block text-sm text-gray-700 mb-2">
-                Referral Code <span className="text-gray-400">(optional)</span>
-              </label>
-              <input
-                type="text"
-                value={formData.referralCode}
-                onChange={(e) => setFormData({ ...formData, referralCode: e.target.value.toUpperCase() })}
-                placeholder="Enter referral code"
-                className="w-full px-4 py-3 bg-gray-50 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#10B981]"
-              />
-            </div>
-
-            {/* Terms */}
-            <div className="flex items-start gap-2">
-              <input type="checkbox" id="terms" className="mt-1" required />
-              <label htmlFor="terms" className="text-xs text-gray-600">
-                I agree to the{" "}
-                <span className="text-[#10B981] cursor-pointer hover:underline">Terms of Service</span>
-                {" "}and{" "}
-                <span className="text-[#10B981] cursor-pointer hover:underline">Privacy Policy</span>
-              </label>
-            </div>
-
-            {/* Signup Button */}
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full bg-[#1E3A8A] text-white py-3 rounded-xl hover:bg-[#152d6b] transition-colors flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed"
-            >
-              {loading ? (
-                <>
-                  <Loader2 className="w-5 h-5 animate-spin" />
-                  Creating account...
-                </>
-              ) : (
-                "Create Account & Claim 50 LEUS 🎁"
-              )}
-            </button>
-          </form>
-        )}
-
-        {/* Back to Login */}
-        {success && (
-          <Link
-            to="/login"
-            className="mt-4 w-full bg-[#10B981] text-white py-3 rounded-xl hover:bg-[#0d9e6e] transition-colors flex items-center justify-center"
+          {/* Signup Button */}
+          <button
+            type="submit"
+            className="w-full bg-[#1E3A8A] text-white py-3 rounded-xl hover:bg-[#152d6b] transition-colors"
           >
-            Go to Sign In
-          </Link>
-        )}
+            Create Account
+          </button>
+        </form>
 
+        {/* Login Link */}
         <p className="mt-6 text-center text-gray-600">
           Already have an account?{" "}
           <Link to="/login" className="text-[#10B981] hover:underline">

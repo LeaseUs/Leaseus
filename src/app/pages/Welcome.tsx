@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router";
 import { motion, AnimatePresence } from "motion/react";
 import { Shield, Zap, Sparkles, Gift, ChevronRight } from "lucide-react";
+import bgImage from "figma:asset/26efaf54209cf3936abcb1e97f9969d980464042.png";
 
 export function Welcome() {
   const navigate = useNavigate();
@@ -42,20 +43,26 @@ export function Welcome() {
     if (currentSlide < slides.length - 1) {
       setCurrentSlide(currentSlide + 1);
     } else {
-      localStorage.setItem("hasSeenWelcome", "true");
       navigate("/signup");
     }
   };
 
   const handleSkip = () => {
-    localStorage.setItem("hasSeenWelcome", "true");
     navigate("/login");
   };
 
   return (
-    <div className="leaseus-auth-screen min-h-screen flex flex-col items-center justify-between px-6 py-8 max-w-md mx-auto">
+    <div 
+      className="min-h-screen flex flex-col items-center justify-between px-6 py-8 max-w-md mx-auto relative overflow-hidden"
+      style={{
+        backgroundImage: `url(${bgImage})`,
+        backgroundSize: 'cover',
+        backgroundPosition: 'center',
+        backgroundRepeat: 'no-repeat'
+      }}
+    >
       {/* Backdrop Blur Overlay */}
-      <div className="leaseus-auth-overlay absolute inset-0"></div>
+      <div className="absolute inset-0 backdrop-blur-md bg-white/20"></div>
 
       {/* Slides */}
       <div className="flex-1 flex items-center justify-center w-full relative z-10 pt-20">
@@ -68,10 +75,10 @@ export function Welcome() {
             transition={{ duration: 0.3 }}
             className="text-center w-full"
           >
-            <div className={`w-32 h-32 ${slides[currentSlide]?.bgColor || ''} rounded-full flex items-center justify-center mx-auto mb-8`}>
+            <div className={`w-32 h-32 ${slides[currentSlide].bgColor} rounded-full flex items-center justify-center mx-auto mb-8`}>
               {(() => {
-                const Icon = slides[currentSlide]?.icon;
-                return Icon ? <Icon className={`w-16 h-16 ${slides[currentSlide]?.color || ''}`} /> : null;
+                const Icon = slides[currentSlide].icon;
+                return <Icon className={`w-16 h-16 ${slides[currentSlide].color}`} />;
               })()}
             </div>
             <h2 
@@ -81,10 +88,10 @@ export function Welcome() {
                 fontStyle: currentSlide === 0 ? 'italic' : 'normal'
               }}
             >
-              {slides[currentSlide]?.title}
+              {slides[currentSlide].title}
             </h2>
             <p className="text-gray-700 text-base leading-relaxed px-4">
-              {slides[currentSlide]?.description}
+              {slides[currentSlide].description}
             </p>
           </motion.div>
         </AnimatePresence>
@@ -126,5 +133,3 @@ export function Welcome() {
     </div>
   );
 }
-
-
