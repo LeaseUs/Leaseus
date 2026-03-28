@@ -71,68 +71,70 @@ export function Layout() {
   }, [fetchCounts]);
 
   return (
-    <div className="leaseus-app-shell h-screen flex flex-col max-w-md mx-auto">
-      {/* Main Content */}
-      <div className="flex-1 overflow-y-auto pb-20">
-        <Outlet />
-      </div>
-
-      {/* AI Chat Widget — lazy loaded on demand so it doesn't slow every page */}
-      {showAIWidget ? (
-        <Suspense fallback={null}>
-          <AIChatWidget defaultOpen />
-        </Suspense>
-      ) : (
-        <button
-          onClick={() => setShowAIWidget(true)}
-          className="fixed bottom-24 right-4 z-40 flex h-14 w-14 items-center justify-center rounded-full bg-[#1E3A8A] text-white shadow-lg transition-all hover:bg-[#152d6b]"
-          aria-label="Open LeaseUs AI"
-        >
-          <Bot className="h-6 w-6" />
-        </button>
-      )}
-
-      {/* Bottom Navigation */}
-      <nav className="fixed bottom-0 left-0 right-0 max-w-md mx-auto bg-white/80 backdrop-blur-lg border-t border-white/20 px-2 py-2 safe-area-inset-bottom">
-        <div className="flex items-center justify-around">
-          {navItems.map((item) => {
-            const Icon      = item.icon;
-            const isActive  = location.pathname === item.path ||
-              (item.path !== "/home" && location.pathname.startsWith(item.path));
-            const isMessages = item.path === "/home/messages";
-            const isBookings = item.path === "/home/bookings";
-
-            return (
-              <Link
-                key={item.path}
-                to={item.path}
-                className={`flex flex-col items-center gap-1 px-2 py-2 rounded-lg transition-colors relative ${
-                  isActive ? "text-[#1E3A8A]" : "text-gray-500 hover:text-gray-700"
-                }`}
-              >
-                <div className="relative">
-                  <Icon className={`w-5 h-5 ${isActive ? "fill-[#1E3A8A]" : ""}`} />
-
-                  {/* Unread messages badge */}
-                  {isMessages && unreadCount > 0 && (
-                    <span className="absolute -top-1.5 -right-1.5 w-4 h-4 bg-[#10B981] rounded-full text-white text-[10px] flex items-center justify-center font-bold">
-                      {unreadCount > 9 ? "9+" : unreadCount}
-                    </span>
-                  )}
-
-                  {/* Pending bookings badge */}
-                  {isBookings && pendingBookings > 0 && (
-                    <span className="absolute -top-1.5 -right-1.5 w-4 h-4 bg-red-500 rounded-full text-white text-[10px] flex items-center justify-center font-bold">
-                      {pendingBookings > 9 ? "9+" : pendingBookings}
-                    </span>
-                  )}
-                </div>
-                <span className="text-xs">{item.label}</span>
-              </Link>
-            );
-          })}
+    <div className="min-h-screen bg-gray-100 flex justify-center">
+      <div className="relative w-full max-w-md bg-white min-h-screen flex flex-col shadow-xl">
+        {/* Main Content */}
+        <div className="flex-1 overflow-y-auto pb-20">
+          <Outlet />
         </div>
-      </nav>
+
+        {/* AI Chat Widget */}
+        {showAIWidget ? (
+          <Suspense fallback={null}>
+            <AIChatWidget defaultOpen />
+          </Suspense>
+        ) : (
+          <button
+            onClick={() => setShowAIWidget(true)}
+            className="absolute bottom-24 right-4 z-40 flex h-14 w-14 items-center justify-center rounded-full bg-[#1E3A8A] text-white shadow-lg transition-all hover:bg-[#152d6b]"
+            aria-label="Open LeaseUs AI"
+          >
+            <Bot className="h-6 w-6" />
+          </button>
+        )}
+
+        {/* Bottom Navigation — stays inside the mobile container */}
+        <nav className="absolute bottom-0 left-0 right-0 bg-white/80 backdrop-blur-lg border-t border-white/20 px-2 py-2">
+          <div className="flex items-center justify-around">
+            {navItems.map((item) => {
+              const Icon      = item.icon;
+              const isActive  = location.pathname === item.path ||
+                (item.path !== "/home" && location.pathname.startsWith(item.path));
+              const isMessages = item.path === "/home/messages";
+              const isBookings = item.path === "/home/bookings";
+
+              return (
+                <Link
+                  key={item.path}
+                  to={item.path}
+                  className={`flex flex-col items-center gap-1 px-2 py-2 rounded-lg transition-colors relative ${
+                    isActive ? "text-[#1E3A8A]" : "text-gray-500 hover:text-gray-700"
+                  }`}
+                >
+                  <div className="relative">
+                    <Icon className={`w-5 h-5 ${isActive ? "fill-[#1E3A8A]" : ""}`} />
+
+                    {/* Unread messages badge */}
+                    {isMessages && unreadCount > 0 && (
+                      <span className="absolute -top-1.5 -right-1.5 w-4 h-4 bg-[#10B981] rounded-full text-white text-[10px] flex items-center justify-center font-bold">
+                        {unreadCount > 9 ? "9+" : unreadCount}
+                      </span>
+                    )}
+
+                    {/* Pending bookings badge */}
+                    {isBookings && pendingBookings > 0 && (
+                      <span className="absolute -top-1.5 -right-1.5 w-4 h-4 bg-red-500 rounded-full text-white text-[10px] flex items-center justify-center font-bold">
+                        {pendingBookings > 9 ? "9+" : pendingBookings}
+                      </span>
+                    )}
+                  </div>
+                  <span className="text-xs">{item.label}</span>
+                </Link>
+              );
+            })}
+          </div>
+        </nav>
+      </div>
     </div>
   );
 }
