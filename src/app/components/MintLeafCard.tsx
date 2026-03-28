@@ -7,13 +7,25 @@ interface MintLeafCardProps {
   onDownload?: () => void;
 }
 
-const CARD_CONFIGS: Record<number, { gradient: [string, string]; label: string; textColor: string }> = {
+interface CardConfig {
+  gradient: [string, string];
+  label: string;
+  textColor: string;
+}
+
+const CARD_CONFIGS: Record<number, CardConfig> = {
   1:   { gradient: ["#c9f2d6", "#7fd3a4"], label: "ONE LEUS",           textColor: "#0b3d3b" },
   5:   { gradient: ["#d6f0f7", "#8ecae6"], label: "FIVE LEUS",          textColor: "#0b3d3b" },
   10:  { gradient: ["#d6f0f7", "#8ecae6"], label: "TEN LEUS",           textColor: "#0b3d3b" },
   25:  { gradient: ["#d9f5f2", "#6ec6c3"], label: "TWENTY FIVE LEUS",   textColor: "#0b3d3b" },
   50:  { gradient: ["#e8d5f5", "#b388e8"], label: "FIFTY LEUS",         textColor: "#1a0b3b" },
   100: { gradient: ["#d9f5f2", "#6ec6c3"], label: "ONE HUNDRED LEUS",   textColor: "#0b3d3b" },
+};
+
+const DEFAULT_CONFIG: CardConfig = {
+  gradient: ["#d6f0f7", "#8ecae6"],
+  label: "LEUS",
+  textColor: "#0b3d3b",
 };
 
 // Simple QR-like pattern generator using canvas (deterministic from token)
@@ -57,7 +69,7 @@ function drawCard(
   canvas.height = H;
 
   const ctx = canvas.getContext("2d")!;
-  const cfg = CARD_CONFIGS[amount] || CARD_CONFIGS[10];
+  const cfg: CardConfig = CARD_CONFIGS[amount] ?? DEFAULT_CONFIG;
 
   // ── Background gradient ───────────────────────────────────────
   const grad = ctx.createLinearGradient(0, 0, W * 0.707, H * 0.707);
