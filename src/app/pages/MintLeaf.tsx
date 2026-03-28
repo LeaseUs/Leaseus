@@ -4,7 +4,7 @@ import {
   Loader2, Copy, Share2, AlertCircle, Download,
 } from "lucide-react";
 import { supabase } from "../../lib/supabase";
-import { MintLeafCard } from "./components/MintLeafCard";
+import { MintLeafCard } from "../components/MintLeafCard";
 import mintleafLogo from "../../assets/mintleaf-logo.png";
 
 export function MintLeaf() {
