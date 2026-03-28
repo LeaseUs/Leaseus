@@ -54,8 +54,10 @@ export function ProviderOnboarding() {
         .from('provider_kyc')
         .select('id, status')
         .eq('provider_id', user.id)
-        .maybeSingle();
-      if (kyc) {
+        .order('updated_at', { ascending: false })
+        .order('created_at', { ascending: false })
+        .limit(1);
+      if (kyc?.[0]) {
         const bootstrap = await fetchAuthBootstrap(user.id);
         navigate(resolvePostAuthDestination(bootstrap), { replace: true });
         return;
@@ -104,10 +106,14 @@ export function ProviderOnboarding() {
         .from('provider_kyc')
         .select('id')
         .eq('provider_id', user.id)
-        .maybeSingle();
+        .order('updated_at', { ascending: false })
+        .order('created_at', { ascending: false })
+        .limit(1);
 
-      const kycResult = await (existingKyc
-        ? supabase.from('provider_kyc').update(payload).eq('id', existingKyc.id).select('id').single()
+      const latestKyc = existingKyc?.[0];
+
+      const kycResult = await (latestKyc
+        ? supabase.from('provider_kyc').update(payload).eq('id', latestKyc.id).select('id').single()
         : supabase.from('provider_kyc').insert({
             ...payload,
             created_at: new Date().toISOString(),

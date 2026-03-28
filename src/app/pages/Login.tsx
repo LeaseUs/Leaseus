@@ -73,6 +73,30 @@ export function Login() {
     if (savedEmail) setEmail(savedEmail);
   }, []);
 
+  useEffect(() => {
+    let mounted = true;
+
+    const redirectAuthenticatedUser = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!mounted || !session?.user) return;
+
+      localStorage.setItem("isLoggedIn", "true");
+      const bootstrap = await fetchAuthBootstrap(session.user.id);
+      if (!mounted) return;
+
+      navigate(resolvePostAuthDestination(bootstrap), {
+        replace: true,
+        state: { authBootstrap: bootstrap },
+      });
+    };
+
+    void redirectAuthenticatedUser();
+
+    return () => {
+      mounted = false;
+    };
+  }, [navigate]);
+
   const checkBiometricSupport = async () => {
     // Check Median native app first
     if (isMedianApp()) {

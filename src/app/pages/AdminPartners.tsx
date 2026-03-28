@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { CheckCircle, XCircle, MapPin, Phone, Globe, Mail, User, Building2, Loader2, RefreshCw } from "lucide-react";
 import { supabase } from "../../lib/supabase";
+import { AdminNav } from "../components/AdminNav";
 
 type Application = {
   id: string;
@@ -162,7 +163,8 @@ export function AdminPartners() {
           <h1 className="text-xl font-bold text-white mb-1" style={{ fontFamily: "Syne, sans-serif" }}>
             Partner Applications
           </h1>
-          <p className="text-white/70 text-sm">Review and approve LEUS partner applications</p>
+          <p className="text-white/70 text-sm">Review and approve LEUS partner applications only</p>
+          <AdminNav current="partners" />
           <div className="flex gap-2 mt-4">
             {(["pending", "approved", "rejected"] as const).map(f => (
               <button key={f} onClick={() => setFilter(f)}

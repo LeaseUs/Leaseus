@@ -66,13 +66,45 @@ export function storeAuthBootstrap(bootstrap: AuthBootstrap | null) {
   sessionStorage.setItem(AUTH_BOOTSTRAP_KEY, JSON.stringify(bootstrap));
 }
 
+async function ensureProfile(userId: string, profile: AuthBootstrap["profile"]): Promise<AuthBootstrap["profile"]> {
+  if (profile) return profile;
+
+  const { data: { user }, error: userError } = await supabase.auth.getUser();
+  if (userError) throw userError;
+  if (!user || user.id !== userId) return null;
+
+  const metadata = user.user_metadata ?? {};
+  const requestedRole = metadata.role === "provider" || metadata.role === "local_business" || metadata.role === "admin"
+    ? metadata.role
+    : "client";
+  const status = requestedRole === "provider" || requestedRole === "local_business" ? "pending" : "active";
+
+  const { data: profileData, error: upsertError } = await supabase
+    .from("profiles")
+    .upsert({
+      id: user.id,
+      full_name: metadata.full_name ?? metadata.name ?? user.email?.split("@")[0] ?? null,
+      email: user.email ?? null,
+      phone: metadata.phone ?? user.phone ?? null,
+      role: requestedRole,
+      status,
+    }, { onConflict: "id" })
+    .select("status, role")
+    .single();
+
+  if (upsertError) throw upsertError;
+  return profileData || null;
+}
+
 export async function fetchAuthBootstrap(userId: string): Promise<AuthBootstrap> {
-  const { data: profileData, error: profileError } = await supabase
+  const { data: rawProfileData, error: profileError } = await supabase
     .from("profiles")
     .select("status, role")
     .eq("id", userId)
     .maybeSingle();
   if (profileError) throw profileError;
+
+  const profileData = await ensureProfile(userId, rawProfileData || null);
 
   let kycData: AuthBootstrap["kyc"] = null;
   if (profileData?.role === "provider" || profileData?.role === "local_business") {
@@ -80,9 +112,11 @@ export async function fetchAuthBootstrap(userId: string): Promise<AuthBootstrap>
       .from("provider_kyc")
       .select("id, status, current_step, assessment_status, category")
       .eq("provider_id", userId)
-      .maybeSingle();
+      .order("updated_at", { ascending: false })
+      .order("created_at", { ascending: false })
+      .limit(1);
     if (error) throw error;
-    kycData = data || null;
+    kycData = data?.[0] || null;
   }
 
   const bootstrap = {

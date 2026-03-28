@@ -29,6 +29,30 @@ export function Signup() {
     }
   }, []);
 
+  useEffect(() => {
+    let mounted = true;
+
+    const redirectAuthenticatedUser = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!mounted || !session?.user) return;
+
+      localStorage.setItem("isLoggedIn", "true");
+      const bootstrap = await fetchAuthBootstrap(session.user.id);
+      if (!mounted) return;
+
+      navigate(resolvePostAuthDestination(bootstrap), {
+        replace: true,
+        state: { authBootstrap: bootstrap },
+      });
+    };
+
+    void redirectAuthenticatedUser();
+
+    return () => {
+      mounted = false;
+    };
+  }, [navigate]);
+
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");

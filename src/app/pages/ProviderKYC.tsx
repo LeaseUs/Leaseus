@@ -42,6 +42,9 @@ export function ProviderKYC() {
   const [serviceArea, setServiceArea] = useState("");
   const [availability, setAvailability] = useState("");
   const [dbsConsent, setDbsConsent] = useState(false);
+  const [dbsUpdateServiceId, setDbsUpdateServiceId] = useState("");
+  const [rightToWorkCode, setRightToWorkCode] = useState("");
+  const [dbsUpdateServiceRegistered, setDbsUpdateServiceRegistered] = useState(false);
   const [nationality, setNationality] = useState("");
 
   // Step 2 – new column names
@@ -96,19 +99,26 @@ export function ProviderKYC() {
         .from("provider_kyc")
         .select("*")
         .eq("provider_id", user.id)
-        .single();
+        .order("updated_at", { ascending: false })
+        .order("created_at", { ascending: false })
+        .limit(1);
 
-      if (kyc) {
-        setExistingKyc(kyc);
-        setKycId(kyc.id);
-        setCategory(kyc.category || "");
-        setQualifications(kyc.qualifications_declared || "");
-        setServiceArea(kyc.service_area || "");
-        setAvailability(kyc.availability || "");
-        setTermsAgreed(kyc.terms_agreed || false);
-        setDbsConsent(kyc.dbs_consent || false);
-        setNationality(kyc.nationality || "");
-        if (kyc.current_step) setStep(kyc.current_step);
+      const latestKyc = kyc?.[0];
+
+      if (latestKyc) {
+        setExistingKyc(latestKyc);
+        setKycId(latestKyc.id);
+        setCategory(latestKyc.category || "");
+        setQualifications(latestKyc.qualifications_declared || "");
+        setServiceArea(latestKyc.service_area || "");
+        setAvailability(latestKyc.availability || "");
+        setTermsAgreed(latestKyc.terms_agreed || false);
+        setDbsConsent(latestKyc.dbs_consent || false);
+        setDbsUpdateServiceId(latestKyc.dbs_update_service_id || "");
+        setRightToWorkCode(latestKyc.right_to_work_code || "");
+        setDbsUpdateServiceRegistered(latestKyc.dbs_update_service_registered || false);
+        setNationality(latestKyc.nationality || "");
+        if (latestKyc.current_step) setStep(latestKyc.current_step);
       }
     } catch (err) {
       console.error(err);
@@ -143,7 +153,10 @@ export function ProviderKYC() {
     if (!qualifications) { setError("Please declare your qualifications and experience."); return; }
     if (!serviceArea) { setError("Please enter your service area."); return; }
     if (!availability) { setError("Please select your availability."); return; }
-    if (!dbsConsent)  { setError("DBS background check consent is required."); return; }
+    if (!dbsConsent)  { setError("DBS consent is required."); return; }
+    if (!dbsUpdateServiceId.trim()) { setError("DBS Update Service ID is required."); return; }
+    if (!rightToWorkCode.trim()) { setError("Right to Work code is required."); return; }
+    if (!dbsUpdateServiceRegistered) { setError("DBS Update Service registration is required."); return; }
     if (!nationality) { setError("Please select your nationality."); return; }
 
     setSaving(true); setError("");
@@ -160,6 +173,9 @@ export function ProviderKYC() {
         terms_agreed: true,
         terms_agreed_at: new Date().toISOString(),
         dbs_consent: dbsConsent,
+        dbs_update_service_id: dbsUpdateServiceId.trim(),
+        right_to_work_code: rightToWorkCode.trim(),
+        dbs_update_service_registered: dbsUpdateServiceRegistered,
         nationality,
         status: "pending",
         current_step: 2,
@@ -179,7 +195,6 @@ export function ProviderKYC() {
 
   const handleSaveStep2 = async () => {
     if (!identityFile && !existingKyc?.identity_doc_url) { setError("Government ID is required."); return; }
-    if (!rightToWorkFile && !existingKyc?.right_to_work_url) { setError("Right to work document is required."); return; }
     if (!addressFile && !existingKyc?.proof_of_address_url) { setError("Proof of address is required."); return; }
     if (!videoSelfieFile && !existingKyc?.video_selfie_url) { setError("Video selfie is required."); return; }
 
@@ -456,12 +471,41 @@ export function ProviderKYC() {
                 <Shield className="w-5 h-5 text-[#1E3A8A]" />DBS Background Check
               </h2>
               <p className="text-xs text-gray-500 mb-4">
-                LeaseUs requires all providers to consent to a Disclosure and Barring Service (DBS) check. This ensures the safety of our clients and maintains trust on the platform.
+                LeaseUs requires a valid DBS record for every provider. You must provide your DBS Update Service ID, your Right to Work code, and confirm that your DBS Update Service registration is active before KYC can proceed.
               </p>
+              <div className="space-y-3 mb-4">
+                <div>
+                  <label className="block text-xs text-gray-600 mb-1">DBS Update Service ID *</label>
+                  <input
+                    value={dbsUpdateServiceId}
+                    onChange={e => setDbsUpdateServiceId(e.target.value)}
+                    placeholder="Enter DBS Update Service ID"
+                    className="w-full px-4 py-3 bg-gray-50 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#10B981]"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs text-gray-600 mb-1">Right to Work code *</label>
+                  <input
+                    value={rightToWorkCode}
+                    onChange={e => setRightToWorkCode(e.target.value)}
+                    placeholder="Enter Right to Work share code"
+                    className="w-full px-4 py-3 bg-gray-50 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#10B981]"
+                  />
+                </div>
+              </div>
+              <label className="flex items-start gap-3 cursor-pointer mb-4">
+                <input
+                  type="checkbox"
+                  checked={dbsUpdateServiceRegistered}
+                  onChange={e => setDbsUpdateServiceRegistered(e.target.checked)}
+                  className="mt-0.5 w-4 h-4 accent-[#10B981]"
+                />
+                <span className="text-sm text-gray-700">I confirm that I am currently registered with the DBS Update Service. This is mandatory for all providers.</span>
+              </label>
               <label className="flex items-start gap-3 cursor-pointer">
                 <input type="checkbox" checked={dbsConsent} onChange={e => setDbsConsent(e.target.checked)}
                   className="mt-0.5 w-4 h-4 accent-[#10B981]" />
-                <span className="text-sm text-gray-700">I consent to LeaseUs conducting a DBS background check and understand this is required to become a verified provider.</span>
+                <span className="text-sm text-gray-700">I consent to LeaseUs checking my DBS details and using the DBS Update Service as part of provider verification.</span>
               </label>
             </div>
 
@@ -476,7 +520,7 @@ export function ProviderKYC() {
           <div className="space-y-4">
             <div className="bg-blue-50 rounded-xl p-4 text-xs text-blue-700 border border-blue-200">
               <p className="font-medium mb-1">📋 Document Requirements</p>
-              <p>All documents must be clear, readable and not expired. Files must be JPG, PNG or PDF under 10MB.</p>
+              <p>All uploaded documents must be clear, readable and not expired. Files must be JPG, PNG or PDF under 10MB.</p>
             </div>
 
             <DocumentUploadCard
@@ -491,9 +535,9 @@ export function ProviderKYC() {
               icon="🪪"
             />
             <DocumentUploadCard
-              label="Right to Work *"
-              sublabel="Visa, work permit, or settlement status"
-              required
+              label="Right to Work document"
+              sublabel="Optional supporting evidence, such as a visa, permit, or status document"
+              required={false}
               file={rightToWorkFile}
               preview={rightToWorkPreview}
               existingUrl={existingKyc?.right_to_work_url}
@@ -601,9 +645,11 @@ export function ProviderKYC() {
                   { label: "Qualifications declared", done: !!qualifications },
                   { label: "Service area set", done: !!serviceArea },
                   { label: "DBS consent given", done: dbsConsent },
+                  { label: "DBS Update Service ID added", done: !!dbsUpdateServiceId.trim() },
+                  { label: "Right to Work code added", done: !!rightToWorkCode.trim() },
+                  { label: "DBS Update Service registration confirmed", done: dbsUpdateServiceRegistered },
                   { label: "Nationality selected", done: !!nationality },
                   { label: "Government ID uploaded", done: !!identityFile || !!existingKyc?.identity_doc_url },
-                  { label: "Right to work uploaded", done: !!rightToWorkFile || !!existingKyc?.right_to_work_url },
                   { label: "Proof of address uploaded", done: !!addressFile || !!existingKyc?.proof_of_address_url },
                   { label: "Video selfie uploaded", done: !!videoSelfieFile || !!existingKyc?.video_selfie_url },
                   { label: "Skills assessment completed", done: existingKyc?.assessment_status === "completed" },
@@ -623,9 +669,9 @@ export function ProviderKYC() {
               </p>
             </div>
             <button onClick={handleSubmit} disabled={saving ||
-              !termsAgreed || !category || !qualifications || !serviceArea || !dbsConsent || !nationality ||
+              !termsAgreed || !category || !qualifications || !serviceArea || !dbsConsent ||
+              !dbsUpdateServiceId.trim() || !rightToWorkCode.trim() || !dbsUpdateServiceRegistered || !nationality ||
               (!identityFile && !existingKyc?.identity_doc_url) ||
-              (!rightToWorkFile && !existingKyc?.right_to_work_url) ||
               (!addressFile && !existingKyc?.proof_of_address_url) ||
               (!videoSelfieFile && !existingKyc?.video_selfie_url) ||
               existingKyc?.assessment_status !== "completed"}

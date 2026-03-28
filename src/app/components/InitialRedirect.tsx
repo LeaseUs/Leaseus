@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import { useNavigate } from "react-router";
-import { fetchAuthBootstrap, getStoredAuthBootstrap, resolvePostAuthDestination } from "../../lib/authBootstrap";
+import { fetchAuthBootstrap, getStoredAuthBootstrap, resolvePostAuthDestination, storeAuthBootstrap } from "../../lib/authBootstrap";
 import { supabase } from "../../lib/supabase";
 
 export function InitialRedirect() {
@@ -9,33 +9,28 @@ export function InitialRedirect() {
   useEffect(() => {
     const runRedirect = async () => {
       const hasSeenWelcome = localStorage.getItem("hasSeenWelcome");
-      const isLoggedIn = localStorage.getItem("isLoggedIn");
       const cachedBootstrap = getStoredAuthBootstrap();
       const cachedDestination = resolvePostAuthDestination(cachedBootstrap);
-
-      if (isLoggedIn) {
-        if (cachedBootstrap) {
-          navigate(cachedDestination);
-          return;
-        }
-      }
 
       const { data: { session } } = await supabase.auth.getSession();
       if (session?.user) {
         localStorage.setItem("isLoggedIn", "true");
         if (cachedBootstrap?.user?.id === session.user.id) {
-          navigate(cachedDestination);
+          navigate(cachedDestination, { replace: true });
           return;
         }
         const bootstrap = await fetchAuthBootstrap(session.user.id);
-        navigate(resolvePostAuthDestination(bootstrap));
+        navigate(resolvePostAuthDestination(bootstrap), { replace: true });
         return;
       }
 
+      localStorage.removeItem("isLoggedIn");
+      storeAuthBootstrap(null);
+
       if (hasSeenWelcome) {
-        navigate("/login");
+        navigate("/login", { replace: true });
       } else {
-        navigate("/splash");
+        navigate("/splash", { replace: true });
       }
     };
 

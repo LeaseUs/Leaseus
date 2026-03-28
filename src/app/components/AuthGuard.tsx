@@ -1,9 +1,9 @@
 import { useEffect, useState } from "react";
-import { Navigate, useLocation } from "react-router";
+import { Navigate, Outlet, useLocation } from "react-router";
 import { fetchAuthBootstrap, getStoredAuthBootstrap, storeAuthBootstrap } from "../../lib/authBootstrap";
 import { supabase } from "../../lib/supabase";
 
-export function AuthGuard({ children }: { children: React.ReactNode }) {
+export function AuthGuard() {
   const [loading, setLoading] = useState(true);
   const [user, setUser] = useState<any>(null);
   const [profile, setProfile] = useState<any>(null);
@@ -45,6 +45,7 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
       if (currentUser) {
         await applyBootstrap(currentUser.id);
       } else {
+        localStorage.removeItem("isLoggedIn");
         storeAuthBootstrap(null);
         setProfile(null);
         setKyc(null);
@@ -60,6 +61,7 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
       if (newUser) {
         await applyBootstrap(newUser.id);
       } else {
+        localStorage.removeItem("isLoggedIn");
         storeAuthBootstrap(null);
         setProfile(null);
         setKyc(null);
@@ -88,7 +90,7 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
 
   // Admin routes should stay inside the admin shell.
   if (role === "admin") {
-    if (location.pathname.startsWith("/admin")) return children;
+    if (location.pathname.startsWith("/admin")) return <Outlet />;
     return <Navigate to="/admin/dashboard" replace />;
   }
 
@@ -105,25 +107,25 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
     const isAssessmentRoute = location.pathname === "/home/kyc/assessment";
 
     if (status === "pending" && !hasKyc) {
-      return !isOnboardingRoute ? <Navigate to="/provider-onboarding" replace /> : children;
+      return !isOnboardingRoute ? <Navigate to="/provider-onboarding" replace /> : <Outlet />;
     }
     if (status === "pending" && assessmentPending) {
-      return !isAssessmentRoute ? <Navigate to={assessmentPath} replace /> : children;
+      return !isAssessmentRoute ? <Navigate to={assessmentPath} replace /> : <Outlet />;
     }
     if (status === "pending" && !kycSubmitted) {
       if (isAssessmentRoute) return <Navigate to="/home/kyc" replace />;
-      return !isKycRoute ? <Navigate to="/home/kyc" replace /> : children;
+      return !isKycRoute ? <Navigate to="/home/kyc" replace /> : <Outlet />;
     }
     if (status === "pending" && kycSubmitted) {
       if (!isKycRoute && !isOnboardingRoute) return <Navigate to="/kyc-pending" replace />;
       if (isKycRoute) return <Navigate to="/kyc-pending" replace />;
-      return children;
+      return <Outlet />;
     }
     if (status === "rejected") return <Navigate to="/kyc-rejected" replace />;
   }
 
   // Clients or active users
-  if (status === 'active') return children;
+  if (status === 'active') return <Outlet />;
 
   // Fallback
   return <Navigate to="/login" replace />;

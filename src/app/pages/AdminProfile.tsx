@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router";
 import { Loader2, LogOut, Mail, Save, Shield, User } from "lucide-react";
 import { supabase } from "../../lib/supabase";
+import { AdminNav } from "../components/AdminNav";
 
 export function AdminProfile() {
   const navigate = useNavigate();
@@ -100,6 +101,7 @@ export function AdminProfile() {
           <div>
             <h1 className="text-xl font-bold text-white">Admin Profile</h1>
             <p className="text-sm text-white/70">Manage your account and access</p>
+            <AdminNav current="profile" />
           </div>
           <button
             onClick={handleLogout}

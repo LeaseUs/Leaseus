@@ -6,6 +6,7 @@ import {
   AlertCircle, LogOut
 } from "lucide-react";
 import { supabase } from "../../lib/supabase";
+import { AdminNav } from "../components/AdminNav";
 
 type Filter = "pending" | "submitted" | "under_review" | "approved" | "rejected";
 
@@ -62,9 +63,11 @@ export function AdminKYC() {
         status: "approved",
         reviewed_by: user?.id,
         reviewed_at: new Date().toISOString(),
-        gov_id_status: "approved",
-        proof_address_status: "approved",
-        selfie_status: "approved",
+        identity_doc_status: "approved",
+        right_to_work_status: app.right_to_work_url ? "approved" : app.right_to_work_status,
+        proof_of_address_status: "approved",
+        credentials_status: app.credentials_url ? "approved" : app.credentials_status,
+        video_selfie_status: "approved",
       }).eq("id", app.id);
       // Activate the provider account as part of approval.
       await supabase.from("profiles").update({
@@ -159,7 +162,8 @@ export function AdminKYC() {
             <h1 className="text-xl font-bold text-white" style={{ fontFamily: "Syne, sans-serif" }}>
               KYC Review Panel
             </h1>
-            <p className="text-white/70 text-sm">Provider verification applications</p>
+            <p className="text-white/70 text-sm">Provider verification applications only</p>
+            <AdminNav current="providers" />
           </div>
           <div className="flex items-center gap-2">
             <button
@@ -255,7 +259,7 @@ export function AdminKYC() {
                   <div className="bg-gray-50 rounded-lg p-2 text-center">
                     <p className="text-xs text-gray-500">Docs</p>
                     <p className="text-xs font-medium text-gray-700">
-                      {[app.gov_id_url, app.proof_address_url, app.selfie_url, app.certifications_url, app.business_reg_url].filter(Boolean).length}/5
+                      {[app.identity_doc_url, app.right_to_work_url, app.proof_of_address_url, app.credentials_url, app.video_selfie_url].filter(Boolean).length}/5
                     </p>
                   </div>
                 </div>
@@ -279,6 +283,9 @@ export function AdminKYC() {
                       <div><span className="font-medium">Service area:</span> {app.service_area || "N/A"}</div>
                       <div><span className="font-medium">Availability:</span> {app.availability || "N/A"}</div>
                       <div><span className="font-medium">DBS consent:</span> {app.dbs_consent ? "✅ Yes" : "❌ No"}</div>
+                      <div><span className="font-medium">DBS Update Service ID:</span> {app.dbs_update_service_id || "N/A"}</div>
+                      <div><span className="font-medium">DBS Update Service registered:</span> {app.dbs_update_service_registered ? "✅ Yes" : "❌ No"}</div>
+                      <div><span className="font-medium">Right to Work code:</span> {app.right_to_work_code || "N/A"}</div>
                       <div><span className="font-medium">Qualifications:</span> {app.qualifications_declared || "N/A"}</div>
                     </div>
                   </div>
@@ -290,11 +297,11 @@ export function AdminKYC() {
                     </h4>
                     <div className="space-y-1.5">
                       {[
-                        { label: "Government ID", url: app.gov_id_url, status: app.gov_id_status },
-                        { label: "Proof of Address", url: app.proof_address_url, status: app.proof_address_status },
-                        { label: "Selfie with ID", url: app.selfie_url, status: app.selfie_status },
-                        { label: "Certifications", url: app.certifications_url, status: app.certifications_status },
-                        { label: "Business Reg.", url: app.business_reg_url, status: app.business_reg_status },
+                        { label: "Government ID", url: app.identity_doc_url, status: app.identity_doc_status },
+                        { label: "Right to Work supporting document", url: app.right_to_work_url, status: app.right_to_work_status },
+                        { label: "Proof of Address", url: app.proof_of_address_url, status: app.proof_of_address_status },
+                        { label: "Video Selfie", url: app.video_selfie_url, status: app.video_selfie_status },
+                        { label: "Credentials", url: app.credentials_url, status: app.credentials_status },
                       ].map(({ label, url, status }) => (
                         <div key={label} className="flex items-center justify-between text-xs">
                           <div className="flex items-center gap-2">
