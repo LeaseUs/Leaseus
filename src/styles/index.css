@@ -2,36 +2,30 @@
 @import './tailwind.css';
 @import './theme.css';
 
-* {
-  margin: 0;
-  padding: 0;
-  box-sizing: border-box;
+/* ── Mobile app shell ──────────────────────────────────────────
+   Forces the entire app to render as a centred mobile column.
+   The dark background behind the shell is set here so it shows
+   on wide desktop screens.
+──────────────────────────────────────────────────────────────── */
+html, body, #root {
+  height: 100%;
+  min-height: 100vh;
 }
 
-html, body {
-  width: 100%;
-  height: 100%;
-  background-color: #0f172a;
+body {
+  background-color: #0f172a !important; /* dark surround on desktop */
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
 }
 
 #root {
   width: 100%;
-  height: 100%;
-  min-height: 100vh;
-  display: flex;
-  justify-content: center;
-  align-items: flex-start;
-  background-color: #0f172a;
-}
-
-/* Mobile app shell — all pages render inside this */
-.leaseus-app-shell {
-  width: 100%;
   max-width: 430px;
   min-height: 100vh;
+  background-color: #ffffff;
   position: relative;
-  overflow: hidden;
-  background: #ffffff;
+  overflow-x: hidden;
 }
 
 /* Set Jera rune (LEUS symbol) to same size as regular currency symbols */
