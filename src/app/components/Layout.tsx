@@ -2,7 +2,7 @@ import { Outlet, Link, useLocation } from "react-router";
 import { Home, Wallet, Search, CalendarCheck, User, MessageCircle } from "lucide-react";
 import { useEffect, useState } from "react";
 import { supabase } from "../../lib/supabase";
-import bgImage from "../../assets/background.png";
+import bgImage from "../../assets/background-optimized.jpg";
 
 export function Layout() {
   const location                             = useLocation();
