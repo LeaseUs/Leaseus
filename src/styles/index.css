@@ -1,33 +1,6 @@
 @import './fonts.css';
 @import './tailwind.css';
 @import './theme.css';
-
-/* ── Mobile app shell ──────────────────────────────────────────
-   Forces the entire app to render as a centred mobile column.
-   The dark background behind the shell is set here so it shows
-   on wide desktop screens.
-──────────────────────────────────────────────────────────────── */
-html, body, #root {
-  height: 100%;
-  min-height: 100vh;
-}
-
-body {
-  background-color: #0f172a !important; /* dark surround on desktop */
-  display: flex;
-  justify-content: center;
-  align-items: flex-start;
-}
-
-#root {
-  width: 100%;
-  max-width: 430px;
-  min-height: 100vh;
-  background-color: #ffffff;
-  position: relative;
-  overflow-x: hidden;
-}
-
 /* Set Jera rune (LEUS symbol) to same size as regular currency symbols */
 .leus {
   font-size: inherit;
