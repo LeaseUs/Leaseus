@@ -90,7 +90,7 @@ export function Profile() {
             <p className="text-lg">Basic (Free)</p>
           </div>
           <Link
-            to="/subscriptions"
+            to="/home/subscriptions"
             className="bg-white text-[#1E3A8A] px-4 py-2 rounded-lg text-sm hover:bg-gray-100 transition-colors"
           >
             Upgrade
@@ -142,8 +142,12 @@ export function Profile() {
 
         {/* Logout */}
         <div className="bg-white/80 backdrop-blur-md rounded-xl shadow-sm overflow-hidden border border-white/30">
-          <Link
-            to="/login"
+          <button
+            onClick={() => {
+              localStorage.removeItem("isLoggedIn");
+              localStorage.removeItem("hasSeenWelcome");
+              window.location.href = "/login";
+            }}
             className="w-full flex items-center gap-3 px-4 py-4 hover:bg-red-50 transition-colors"
           >
             <LogOut className="w-5 h-5 text-red-600" />
@@ -151,7 +155,7 @@ export function Profile() {
               Sign Out
             </span>
             <ChevronRight className="w-4 h-4 text-red-400" />
-          </Link>
+          </button>
         </div>
 
         {/* App Version */}

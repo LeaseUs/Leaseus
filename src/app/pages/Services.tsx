@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Link } from "react-router";
 import { Search, SlidersHorizontal, Star, MapPin, ChevronRight } from "lucide-react";
 
 export function Services() {
@@ -171,10 +172,13 @@ export function Services() {
                 </div>
               </div>
 
-              <button className="w-full bg-[#1E3A8A] text-white py-2.5 rounded-lg hover:bg-[#152d6b] transition-colors flex items-center justify-center gap-2">
+              <Link
+                to={`/home/services/${service.id}`}
+                className="w-full bg-[#1E3A8A] text-white py-2.5 rounded-lg hover:bg-[#152d6b] transition-colors flex items-center justify-center gap-2"
+              >
                 View Details
                 <ChevronRight className="w-4 h-4" />
-              </button>
+              </Link>
             </div>
           </div>
         ))}

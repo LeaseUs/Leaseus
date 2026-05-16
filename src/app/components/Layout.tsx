@@ -34,7 +34,9 @@ export function Layout() {
         <div className="flex items-center justify-around">
           {navItems.map((item) => {
             const Icon = item.icon;
-            const isActive = location.pathname === item.path;
+            const isActive = location.pathname === item.path || 
+              (item.path === "/home" && location.pathname === "/home") ||
+              (item.path !== "/home" && location.pathname.startsWith(item.path));
             
             return (
               <Link

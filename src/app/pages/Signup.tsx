@@ -150,8 +150,13 @@ export function Signup() {
           </div>
 
           {/* Terms */}
-          <div className="flex items-start gap-2">
-            <input type="checkbox" id="terms" className="mt-1" required />
+          <div className="flex items-start gap-3">
+            <input 
+              type="checkbox" 
+              id="terms" 
+              className="mt-0.5 h-4 w-4 rounded border-gray-300 text-[#10B981] focus:ring-[#10B981] accent-[#10B981]" 
+              required 
+            />
             <label htmlFor="terms" className="text-xs text-gray-600">
               I agree to the Terms of Service and Privacy Policy
             </label>

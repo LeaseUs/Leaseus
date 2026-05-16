@@ -1,32 +1,138 @@
 import { useState } from "react";
-import { useNavigate } from "react-router";
+import { useNavigate, useParams } from "react-router";
 import { ArrowLeft, Star, MapPin, Clock, Shield, CheckCircle, Calendar, MessageCircle } from "lucide-react";
 
 export function ServiceDetail() {
   const navigate = useNavigate();
+  const { id } = useParams();
   const [selectedDate, setSelectedDate] = useState("");
   const [selectedTime, setSelectedTime] = useState("");
   const [paymentMethod, setPaymentMethod] = useState<"fiat" | "leus">("fiat");
 
-  const service = {
-    name: "Professional Cleaning",
-    provider: "CleanPro Services",
-    rating: 4.9,
-    reviews: 156,
-    price: 50,
-    location: "2.3 mi away",
-    leusAccepted: true,
-    description: "Expert cleaning services for homes and offices. Our professional team uses eco-friendly products and guarantees satisfaction.",
-    image: "https://images.unsplash.com/photo-1581578731548-c64695cc6952?w=800&h=400&fit=crop",
-    availability: "Mon-Sat, 8:00 AM - 6:00 PM",
-    features: [
-      "Background-checked professionals",
-      "Eco-friendly cleaning products",
-      "100% satisfaction guarantee",
-      "Flexible scheduling",
-      "Insurance covered",
-    ],
-  };
+  const services = [
+    {
+      id: "1",
+      name: "Professional Cleaning",
+      provider: "CleanPro Services",
+      rating: 4.9,
+      reviews: 156,
+      price: 50,
+      location: "2.3 mi away",
+      leusAccepted: true,
+      description: "Expert cleaning services for homes and offices. Our professional team uses eco-friendly products and guarantees satisfaction.",
+      image: "https://images.unsplash.com/photo-1581578731548-c64695cc6952?w=800&h=400&fit=crop",
+      availability: "Mon-Sat, 8:00 AM - 6:00 PM",
+      features: [
+        "Background-checked professionals",
+        "Eco-friendly cleaning products",
+        "100% satisfaction guarantee",
+        "Flexible scheduling",
+        "Insurance covered",
+      ],
+    },
+    {
+      id: "2",
+      name: "Emergency Plumbing",
+      provider: "QuickFix Plumbers",
+      rating: 4.8,
+      reviews: 203,
+      price: 75,
+      location: "1.5 mi away",
+      leusAccepted: true,
+      description: "24/7 emergency plumbing services. Fast response times and professional repairs for all your plumbing needs.",
+      image: "https://images.unsplash.com/photo-1607472586893-edb57bdc0e39?w=800&h=400&fit=crop",
+      availability: "24/7 Emergency Service",
+      features: [
+        "24/7 availability",
+        "Licensed plumbers",
+        "Same-day service",
+        "Upfront pricing",
+        "Warranty on repairs",
+      ],
+    },
+    {
+      id: "3",
+      name: "Mobile Car Detailing",
+      provider: "Shine & Drive",
+      rating: 4.7,
+      reviews: 89,
+      price: 40,
+      location: "3.1 mi away",
+      leusAccepted: false,
+      description: "Professional mobile car detailing service. We come to you and make your car shine like new.",
+      image: "https://images.unsplash.com/photo-1601362840469-51e4d8d58785?w=800&h=400&fit=crop",
+      availability: "Mon-Sun, 7:00 AM - 7:00 PM",
+      features: [
+        "Mobile service",
+        "Premium products",
+        "Interior & exterior",
+        "Flexible scheduling",
+        "Satisfaction guaranteed",
+      ],
+    },
+    {
+      id: "4",
+      name: "Hair Styling",
+      provider: "Style Studio",
+      rating: 4.9,
+      reviews: 312,
+      price: 35,
+      location: "0.8 mi away",
+      leusAccepted: true,
+      description: "Expert hair styling and treatments. Our talented stylists will help you achieve your desired look.",
+      image: "https://images.unsplash.com/photo-1560066984-138dadb4c035?w=800&h=400&fit=crop",
+      availability: "Tue-Sat, 9:00 AM - 8:00 PM",
+      features: [
+        "Experienced stylists",
+        "Premium products",
+        "Personalized consultation",
+        "Walk-ins welcome",
+        "Gift cards available",
+      ],
+    },
+    {
+      id: "5",
+      name: "Interior Painting",
+      provider: "ColorCraft Painters",
+      rating: 4.6,
+      reviews: 67,
+      price: 200,
+      location: "4.2 mi away",
+      leusAccepted: true,
+      description: "Professional interior painting services. Transform your space with our expert painters and premium paints.",
+      image: "https://images.unsplash.com/photo-1589939705384-5185137a7f0f?w=800&h=400&fit=crop",
+      availability: "Mon-Fri, 8:00 AM - 5:00 PM",
+      features: [
+        "Free estimates",
+        "Premium paints",
+        "Clean workspace",
+        "Color consultation",
+        "5-year warranty",
+      ],
+    },
+    {
+      id: "6",
+      name: "Event Photography",
+      provider: "Capture Moments",
+      rating: 5.0,
+      reviews: 124,
+      price: 300,
+      location: "2.7 mi away",
+      leusAccepted: false,
+      description: "Professional event photography for weddings, parties, and corporate events. Capturing your special moments.",
+      image: "https://images.unsplash.com/photo-1542038784456-1ea8e935640e?w=800&h=400&fit=crop",
+      availability: "By appointment",
+      features: [
+        "Professional equipment",
+        "Same-day previews",
+        "Online gallery",
+        "Print services",
+        "Rush delivery available",
+      ],
+    },
+  ];
+
+  const service = services.find(s => s.id === id) || services[0];
 
   const timeSlots = [
     "9:00 AM", "10:00 AM", "11:00 AM",
