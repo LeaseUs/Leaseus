@@ -1,6 +1,5 @@
 import { Outlet, Link, useLocation } from "react-router";
 import { Home, Wallet, Search, Award, User } from "lucide-react";
-import bgImage from "figma:asset/26efaf54209cf3936abcb1e97f9969d980464042.png";
 
 export function Layout() {
   const location = useLocation();
@@ -15,14 +14,7 @@ export function Layout() {
 
   return (
     <div 
-      className="h-screen flex flex-col max-w-md mx-auto relative"
-      style={{
-        backgroundImage: `url(${bgImage})`,
-        backgroundSize: 'cover',
-        backgroundPosition: 'center',
-        backgroundRepeat: 'no-repeat',
-        backgroundAttachment: 'fixed'
-      }}
+      className="h-screen flex flex-col max-w-md mx-auto relative bg-gradient-to-br from-slate-50 via-blue-50 to-emerald-50"
     >
       {/* Main Content */}
       <div className="flex-1 overflow-y-auto pb-20">

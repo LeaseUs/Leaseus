@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { Link } from "react-router";
 import { Bell, Search, Calendar, Wallet, Sparkles, Home as HomeIcon, Wrench, Car, Scissors, Paintbrush, Camera, Laptop, Heart, ChevronRight, MapPin, Star } from "lucide-react";
-import logoImage from "figma:asset/37a3bc5e0af11a212a9124a7d3ec819ea82f67d7.png";
 
 export function Home() {
   const [vestingProgress] = useState(35); // 35% of 50 LEUS vested
@@ -58,7 +57,7 @@ export function Home() {
       {/* Header */}
       <div className="bg-[#1E3A8A]/80 backdrop-blur-lg px-4 pt-6 pb-4 rounded-b-3xl relative overflow-hidden">
         <div className="flex items-center justify-between mb-4 relative z-10">
-          <img src={logoImage} alt="LeaseUs" className="h-10" />
+          <span className="text-2xl font-bold text-white" style={{ fontFamily: 'Syne, sans-serif' }}>LeaseUs</span>
           <div className="flex items-center gap-3">
             <button className="relative">
               <Bell className="w-6 h-6 text-white" />

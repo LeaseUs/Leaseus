@@ -1,7 +1,6 @@
 import { useNavigate } from "react-router";
 import { motion } from "motion/react";
 import { Gift } from "lucide-react";
-import bgImage from "figma:asset/26efaf54209cf3936abcb1e97f9969d980464042.png";
 
 export function Splash() {
   const navigate = useNavigate();
@@ -22,13 +21,7 @@ export function Splash() {
 
   return (
     <div 
-      className="min-h-screen flex flex-col items-center justify-between px-6 py-8 max-w-md mx-auto relative overflow-hidden"
-      style={{
-        backgroundImage: `url(${bgImage})`,
-        backgroundSize: 'cover',
-        backgroundPosition: 'center',
-        backgroundRepeat: 'no-repeat'
-      }}
+      className="min-h-screen flex flex-col items-center justify-between px-6 py-8 max-w-md mx-auto relative overflow-hidden bg-gradient-to-br from-slate-50 via-blue-50 to-emerald-50"
     >
       {/* Spacer for top */}
       <div className="flex-1"></div>

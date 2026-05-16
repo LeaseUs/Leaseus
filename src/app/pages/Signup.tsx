@@ -1,7 +1,6 @@
 import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router";
 import { Eye, EyeOff, CheckCircle } from "lucide-react";
-import bgImage from "figma:asset/26efaf54209cf3936abcb1e97f9969d980464042.png";
 
 export function Signup() {
   const navigate = useNavigate();
@@ -39,13 +38,7 @@ export function Signup() {
 
   return (
     <div
-      className="min-h-screen flex flex-col items-center justify-center px-6 py-8 max-w-md mx-auto relative overflow-hidden"
-      style={{
-        backgroundImage: `url(${bgImage})`,
-        backgroundSize: "cover",
-        backgroundPosition: "center",
-        backgroundRepeat: "no-repeat",
-      }}
+      className="min-h-screen flex flex-col items-center justify-center px-6 py-8 max-w-md mx-auto relative overflow-hidden bg-gradient-to-br from-slate-50 via-blue-50 to-emerald-50"
     >
       {/* Backdrop Blur Overlay */}
       <div className="absolute inset-0 backdrop-blur-md bg-white/20"></div>
